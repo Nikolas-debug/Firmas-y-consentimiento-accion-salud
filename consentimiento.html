@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Acción Salud — Autorización de uso de imagen</title>
+
+<link rel="stylesheet" href="css/consentimiento.css"/>
+
+<style>
+  body { margin: 0; background: #f9f9ff; }
+</style>
+</head>
+<body>
+
+<!-- =====================================================================
+     Íconos de los tipos de persona. Viven aquí como <symbol> para poder
+     referenciarlos con <use href="#ic-…"> desde cualquier parte del módulo.
+     ===================================================================== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+
+  <symbol id="ic-paciente" viewBox="0 0 96 96">
+    <rect x="80" y="14" width="3" height="58" rx="1.5" fill="#9aa7b8"/>
+    <rect x="74" y="45" width="15" height="4" rx="2" fill="#9aa7b8"/>
+    <path d="M75 18h13a2 2 0 0 1 2 2v14a8.5 8.5 0 0 1-17 0V20a2 2 0 0 1 2-2z" fill="#d8effb"/>
+    <path d="M73 27h17v7a8.5 8.5 0 0 1-17 0z" fill="#4bb8e8"/>
+    <path d="M81.5 42.5V48" stroke="#9aa7b8" stroke-width="1.8" stroke-linecap="round"/>
+    <rect x="12" y="70" width="5" height="13" rx="2.5" fill="#8fa0b4"/>
+    <rect x="64" y="70" width="5" height="13" rx="2.5" fill="#8fa0b4"/>
+    <rect x="7" y="33" width="7" height="42" rx="3.5" fill="#7fcfee"/>
+    <rect x="67" y="49" width="7" height="26" rx="3.5" fill="#7fcfee"/>
+    <rect x="9" y="58" width="64" height="14" rx="4" fill="#e6ecf4"/>
+    <rect x="17" y="46" width="23" height="13" rx="6" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/>
+    <path d="M36 72V62c0-5.5 4.5-10 10-10h21a4 4 0 0 1 4 4v16z" fill="#5aa9f0"/>
+    <path d="M36 66h35" stroke="#c9e2fb" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="31" cy="44" r="9" fill="#f7c9a4"/>
+    <path d="M22.5 43.5c0-6.5 4-10.5 8.5-10.5s8.5 4 8.5 10.5c-2-1.5-3-4-3-6.5-3.5 2.5-9 3-14 6.5z" fill="#9a5f3a"/>
+    <circle cx="28" cy="45" r="1.3" fill="#2c3e50"/>
+    <circle cx="34.5" cy="45" r="1.3" fill="#2c3e50"/>
+    <path d="M29.5 49.5c1.3 1 2.6 1 3.9 0" stroke="#2c3e50" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+    <path d="M46 56c6 0 12 1.5 16.5 4" stroke="#f7c9a4" stroke-width="5" stroke-linecap="round" fill="none"/>
+    <path d="M62 60c6-3 12-8 19-11" stroke="#4bb8e8" stroke-width="1.6" fill="none" opacity=".8"/>
+  </symbol>
+
+  <symbol id="ic-acompanante" viewBox="0 0 96 96">
+    <path d="M20 86c0-13.5 12.5-22 28-22s28 8.5 28 22z" fill="#ef5a6f"/>
+    <path d="M40 65l8 9 8-9-3.5-2.5H43.5z" fill="#fff" opacity=".9"/>
+    <path d="M40 52h16v13a8 8 0 0 1-16 0z" fill="#f0b995"/>
+    <circle cx="48" cy="40" r="18" fill="#f7c9a4"/>
+    <path d="M28.5 40c-1.5-13 7-23 19.5-23s21 10 19.5 23c-1-1-2.5-6-2.5-9.5-4 4.5-9 3-14.5 1.5-6-1.5-9 1-11.5 3.5-2.5 2.5-3.5 4-4.5 6.5-2 3-4 6-6 9z" fill="#4b3a52"/>
+    <circle cx="41" cy="40" r="1.8" fill="#2c3e50"/>
+    <circle cx="55" cy="40" r="1.8" fill="#2c3e50"/>
+    <path d="M33 44h30v7c0 8-6.5 13-15 13s-15-5-15-13z" fill="#7fd6d6"/>
+    <path d="M33 47c-3.5-1-6-2.5-8-4.5M63 47c3.5-1 6-2.5 8-4.5" stroke="#7fd6d6" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+    <path d="M34 51h28M34 56h28" stroke="#5fbdbd" stroke-width="1.6" stroke-linecap="round"/>
+  </symbol>
+
+  <symbol id="ic-testigo" viewBox="0 0 96 96">
+    <rect x="6" y="44" width="26" height="30" rx="4" fill="#eaf4fb"/>
+    <path d="M11 51h16M11 57h16M11 63h10" stroke="#7fb8dd" stroke-width="2.6" stroke-linecap="round"/>
+    <rect x="8" y="65" width="8" height="8" rx="2.5" fill="#4bb8e8"/>
+    <path d="M23 13l12 4.5v11c0 8-5 14-12 17-7-3-12-9-12-17v-11z" fill="#3b7ddb"/>
+    <path d="M18 27.5l3.5 3.5 7-7" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M36 86c0-12.5 11-20.5 25-20.5s25 8 25 20.5z" fill="#38a9e0"/>
+    <path d="M53 54h16v12a8 8 0 0 1-16 0z" fill="#f0b995"/>
+    <circle cx="61" cy="42" r="17" fill="#f7c9a4"/>
+    <path d="M44 40a17 17 0 0 1 34 0z" fill="#2f4858"/>
+    <path d="M44 40h-6a3 3 0 0 0 0 6h8z" fill="#3d5b70"/>
+    <circle cx="61" cy="24" r="2.5" fill="#3d5b70"/>
+    <circle cx="55" cy="45" r="1.9" fill="#2c3e50"/>
+    <circle cx="68" cy="45" r="1.9" fill="#2c3e50"/>
+    <path d="M56.5 52c2.8 2.5 5.7 2.5 8.5 0" stroke="#2c3e50" stroke-width="2" stroke-linecap="round" fill="none"/>
+  </symbol>
+
+  <symbol id="ic-medico" viewBox="0 0 96 96">
+    <path d="M18 86c0-13 11.5-21 30-21s30 8 30 21z" fill="#f2f5f9"/>
+    <path d="M48 65l-9 3 9 18 9-18z" fill="#5fc4cb"/>
+    <path d="M39 68l9 6 9-6" stroke="#e2e8f0" stroke-width="1.6" fill="none"/>
+    <path d="M40 52h16v13a8 8 0 0 1-16 0z" fill="#f0b995"/>
+    <circle cx="48" cy="40" r="18" fill="#f7c9a4"/>
+    <path d="M29 41c0-12.5 8.5-21.5 19-21.5s19 9 19 21.5c-2-1.5-3-5-3.5-9-5.5 4-12 5-18.5 3.5-4.5-1-8 .5-11 3.5-1.6 1.6-3.4 2.3-5 2z" fill="#6b4632"/>
+    <circle cx="41" cy="41" r="1.9" fill="#2c3e50"/>
+    <circle cx="55" cy="41" r="1.9" fill="#2c3e50"/>
+    <path d="M43.5 48.5c2.8 2.6 6.2 2.6 9 0" stroke="#2c3e50" stroke-width="2" stroke-linecap="round" fill="none"/>
+    <path d="M39 67c0 9 5.5 14 12 14s12-5 12-13.5" stroke="#3f8fb0" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <circle cx="63" cy="65" r="4.5" fill="#4bb8e8"/>
+    <circle cx="63" cy="65" r="1.8" fill="#eaf4fb"/>
+  </symbol>
+
+  <!-- Tipos de consentimiento -->
+  <symbol id="ic-consent-imagen" viewBox="0 0 96 96">
+    <rect x="10" y="26" width="76" height="54" rx="9" fill="#eaf4fb"/>
+    <path d="M34 26l5-8h18l5 8z" fill="#7fcfee"/>
+    <circle cx="48" cy="53" r="17" fill="#5aa9f0"/>
+    <circle cx="48" cy="53" r="10" fill="#eaf4fb"/>
+    <circle cx="48" cy="53" r="5" fill="#38a9e0"/>
+    <circle cx="73" cy="37" r="3.5" fill="#7fd6d6"/>
+    <path d="M18 34h9" stroke="#9fd8f2" stroke-width="3.4" stroke-linecap="round"/>
+  </symbol>
+
+  <symbol id="ic-consent-certificado" viewBox="0 0 96 96">
+    <rect x="14" y="12" width="54" height="68" rx="6" fill="#eaf4fb"/>
+    <path d="M24 28h34M24 39h34M24 50h22" stroke="#7fb8dd" stroke-width="3.2" stroke-linecap="round"/>
+    <path d="M24 63h20" stroke="#b9d9ee" stroke-width="3.2" stroke-linecap="round"/>
+    <circle cx="66" cy="58" r="16" fill="#5fc4cb"/>
+    <path d="M58.5 58l5 5 10-10" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M58 71l-3 15 11-5 11 5-3-15" fill="#3b7ddb"/>
+  </symbol>
+
+  <symbol id="ic-consent-pacientes" viewBox="0 0 96 96">
+    <rect x="16" y="14" width="52" height="66" rx="6" fill="#eaf4fb"/>
+    <rect x="32" y="8" width="20" height="12" rx="3" fill="#7fcfee"/>
+    <path d="M26 34h32M26 44h32M26 54h20" stroke="#7fb8dd" stroke-width="3.2" stroke-linecap="round"/>
+    <path d="M62 48h26v22a4 4 0 0 1-4 4H62z" fill="#5fc4cb" opacity=".25"/>
+    <path d="M58 66c3.5-8 9-11 14-8 5-3 10.5 0 14 8-4.5 8-9.5 12-14 14-4.5-2-9.5-6-14-14z" fill="#ef5a6f"/>
+    <path d="M69 63v10M64 68h10" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
+  </symbol>
+
+  <symbol id="ic-consent-conecta" viewBox="0 0 96 96">
+    <rect x="12" y="12" width="46" height="60" rx="6" fill="#eaf4fb"/>
+    <circle cx="27" cy="29" r="7" fill="#7fcfee"/>
+    <path d="M18 44c0-5 4-8 9-8s9 3 9 8z" fill="#7fcfee"/>
+    <path d="M22 54h26M22 62h18" stroke="#7fb8dd" stroke-width="3.2" stroke-linecap="round"/>
+    <circle cx="72" cy="30" r="8" fill="#3b7ddb"/>
+    <circle cx="82" cy="56" r="7" fill="#5fc4cb"/>
+    <circle cx="62" cy="72" r="7" fill="#38a9e0"/>
+    <path d="M72 38l10 12M76 61l-9 7M67 66l3-28" stroke="#9fd8f2" stroke-width="2.6" stroke-linecap="round"/>
+  </symbol>
+
+  <symbol id="ic-consent-datos" viewBox="0 0 96 96">
+    <rect x="16" y="10" width="52" height="68" rx="7" fill="#eaf4fb"/>
+    <path d="M26 26h32M26 36h32M26 46h20" stroke="#7fb8dd" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M62 44l20 7v13c0 10-8 17-20 21-12-4-20-11-20-21V51z" fill="#3b7ddb"/>
+    <rect x="55" y="63" width="14" height="11" rx="2.5" fill="#eaf4fb"/>
+    <path d="M57.5 63v-3.5a4.5 4.5 0 0 1 9 0V63" stroke="#eaf4fb" stroke-width="2.6" fill="none"/>
+    <circle cx="62" cy="68" r="2" fill="#3b7ddb"/>
+  </symbol>
+</svg>
+
+<header class="asc-header">
+  <img onclick="window.location.href='index.html'" class="asc-logo" id="appLogo" src="images/logo2.png" alt="Acción Salud para Todos SAS"/>
+</header>
+
+<div class="asc">
+
+  <section class="asc-setup" id="ascSetup">
+    <div class="asc-setup-wrap">
+
+      <!-- Paso 1: entidad -->
+      <div class="asc-setup-step" id="stepOrg">
+        <p class="asc-setup-eyebrow" data-paso="1">Paso 1</p>
+        <h2 class="asc-setup-title">¿En qué sede se encuentra?</h2>
+        <p class="asc-setup-lead">Seleccione la entidad donde se está firmando el consentimiento.</p>
+        <div class="asc-choices asc-choices--2" id="orgChoices"></div>
+      </div>
+
+      <!-- Paso 2: tipo de persona -->
+      <div class="asc-setup-step asc-hidden" id="stepPersona">
+        <p class="asc-setup-eyebrow" data-paso="2">Paso 2</p>
+        <h2 class="asc-setup-title">Consentimientos a firmar</h2>
+        <p class="asc-setup-lead">Se requiere firmar los siguientes consentimientos para proceder con la realización del procedimiento. Indique quién va a firmar.</p>
+        <div class="asc-choices asc-choices--4" id="personaChoices"></div>
+        <div class="asc-setup-foot">
+          <button class="asc-btn asc-btn--link" type="button" id="btnVolverOrg">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Cambiar entidad
+          </button>
+        </div>
+      </div>
+
+      <!-- Paso 3: tipo de consentimiento -->
+      <div class="asc-setup-step asc-hidden" id="stepConsent">
+        <p class="asc-setup-eyebrow" data-paso="3">Paso 3</p>
+        <h2 class="asc-setup-title">¿Qué consentimiento va a firmar?</h2>
+        <p class="asc-setup-lead">Cada consentimiento genera su propio formato y pide datos distintos.</p>
+        <div class="asc-choices asc-choices--2" id="consentChoices"></div>
+        <div class="asc-setup-foot">
+          <button class="asc-btn asc-btn--link" type="button" id="btnVolverPersona">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Cambiar quién firma
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       FORMULARIO
+       =================================================================== -->
+  <form id="consentForm" class="asc-wrap asc-hidden" novalidate>
+
+    <!-- Resumen de lo elegido en la pantalla previa -->
+    <div class="asc-chosen">
+      <div class="asc-chosen-info">
+        <span class="asc-chosen-item">
+          <img class="asc-chosen-logo" id="chosenOrgLogo" src="images/logo2.png" alt=""/>
+          <span id="chosenOrg">—</span>
+        </span>
+        <span class="asc-chosen-sep" aria-hidden="true"></span>
+        <span class="asc-chosen-item">
+          <svg class="asc-chosen-ic" aria-hidden="true"><use id="chosenPersonaIcon" href="#ic-paciente"/></svg>
+          <span id="chosenPersona">—</span>
+        </span>
+        <span class="asc-chosen-sep" aria-hidden="true"></span>
+        <span class="asc-chosen-item">
+          <svg class="asc-chosen-ic" aria-hidden="true"><use id="chosenConsentIcon" href="#ic-consent-imagen"/></svg>
+          <span id="chosenConsent">—</span>
+        </span>
+      </div>
+      <button class="asc-btn asc-btn--link" type="button" id="btnCambiarSeleccion">Cambiar</button>
+    </div>
+
+    <div class="asc-intro">
+      <h2 class="asc-title" id="tituloConsent">Autorización de uso de derechos de imagen</h2>
+      <p class="asc-lead" id="leadConsent">Fotografías y producciones audiovisuales (videos). Complete los datos: la información debe coincidir con el documento de identidad.</p>
+    </div>
+    <div class="asc-grid">
+      <div class="asc-col">
+        <section class="asc-card">
+          <h3 class="asc-card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span id="tituloDatos">Datos del titular</span>
+          </h3>
+
+          <div class="asc-fields asc-fields--2">
+            <div class="asc-field">
+              <label class="asc-label" for="nombres">Nombres</label>
+              <input class="asc-input" id="nombres" name="nombres" type="text" autocomplete="given-name" placeholder="Ingrese sus nombres" required/>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="apellidos">Apellidos</label>
+              <input class="asc-input" id="apellidos" name="apellidos" type="text" autocomplete="family-name" placeholder="Ingrese sus apellidos" required/>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="tipoDoc">Tipo de identificación</label>
+              <select class="asc-select" id="tipoDoc" name="tipoDoc" required></select>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="identificacion">Número de identificación</label>
+              <input class="asc-input" id="identificacion" name="identificacion" type="text" inputmode="numeric" maxlength="15" placeholder="Ej. 123456789" required/>
+            </div>
+            <div class="asc-field asc-field--full" id="campoLugarExpedicion">
+              <label class="asc-label" for="lugarExpedicion">Lugar de expedición</label>
+              <input class="asc-input" id="lugarExpedicion" name="lugarExpedicion" type="text" placeholder="Ciudad, Departamento" required/>
+            </div>
+            <div class="asc-field asc-field--full asc-hidden" id="campoEntidad">
+              <label class="asc-label" for="entidadRemitente">EPS o entidad remitente <span class="asc-opcional">(opcional)</span></label>
+              <input class="asc-input" id="entidadRemitente" name="entidadRemitente" type="text"
+                     maxlength="80" placeholder="Se puede dejar en blanco y escribirla a mano"/>
+            </div>
+
+            <div class="asc-field asc-hidden" id="campoRepresentadoNombre">
+              <label class="asc-label" for="representadoNombre">Firma en representación de <span class="asc-opcional">(opcional)</span></label>
+              <input class="asc-input" id="representadoNombre" name="representadoNombre" type="text"
+                     maxlength="80" placeholder="Nombres y apellidos"/>
+            </div>
+            <div class="asc-field asc-hidden" id="campoRepresentadoDoc">
+              <label class="asc-label" for="representadoDoc">Identificación del representado <span class="asc-opcional">(opcional)</span></label>
+              <input class="asc-input" id="representadoDoc" name="representadoDoc" type="text"
+                     inputmode="numeric" maxlength="15" placeholder="Número de documento"/>
+            </div>
+
+            <div class="asc-field asc-field--full asc-hidden" id="campoFinalidad">
+              <label class="asc-label" for="finalidad">Finalidad de la recolección de los datos</label>
+              <textarea class="asc-input asc-textarea" id="finalidad" name="finalidad" rows="3"
+                        maxlength="400" placeholder="Ej. Prestación de servicios de salud, facturación y seguimiento clínico"></textarea>
+              <p class="asc-note">Se imprime en el punto 2 del formato, después de «la cual consiste en:».</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="asc-card" id="cardMenores">
+          <div class="asc-switch-row">
+            <h3 class="asc-card-title" style="margin-bottom:0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M6 21v-1a6 6 0 0 1 12 0v1"/><path d="M10 8h.01M14 8h.01"/></svg>
+              Menores de edad
+            </h3>
+            <label class="asc-switch" for="toggleMinor">
+              <span>¿Autoriza también a menores de edad?</span>
+              <input id="toggleMinor" name="tieneMenores" type="checkbox"/>
+              <span class="asc-switch-track"></span>
+            </label>
+          </div>
+          <p class="asc-note">Si se desactiva, el bloque "Menor de edad" no aparece en el documento generado.</p>
+
+          <div class="asc-minors-box asc-hidden" id="minorFormContainer">
+            <div class="asc-minors-list" id="minorsList"></div>
+            <div class="asc-minors-foot">
+              <button class="asc-btn asc-btn--link" type="button" id="addMinorBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                Agregar otro menor
+              </button>
+              <p class="asc-note" id="minorCounter" aria-live="polite"></p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Datos de la atención (certificado) -->
+        <section class="asc-card asc-hidden" id="cardAtencion">
+          <h3 class="asc-card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            Datos de la atención
+          </h3>
+
+          <div class="asc-fields asc-fields--2">
+            <div class="asc-field">
+              <label class="asc-label" for="fechaAtencion">Fecha de la atención</label>
+              <input class="asc-input" id="fechaAtencion" name="fechaAtencion" type="date"/>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="usuario">Usuario que registra</label>
+              <input class="asc-input" id="usuario" name="usuario" type="text" maxlength="80"
+                     placeholder="Nombre del trabajador"/>
+              <p class="asc-note">Se recuerda mientras la página siga abierta.</p>
+            </div>
+
+            <!-- Buscadores: la lista es larga, así que se filtra al escribir.
+                 Si lo escrito no coincide, la última fila ofrece usarlo igual. -->
+            <div class="asc-field asc-field--full">
+              <label class="asc-label" for="convenio">Convenio</label>
+              <div class="asc-buscador">
+                <input class="asc-input asc-buscador-input" id="convenio" name="convenio" type="text"
+                       maxlength="160" autocomplete="off" spellcheck="false"
+                       role="combobox" aria-expanded="false" aria-autocomplete="list"
+                       aria-controls="convenioLista"
+                       placeholder="Escriba para buscar el convenio"/>
+                <button class="asc-buscador-flecha" type="button" tabindex="-1" aria-label="Ver todos los convenios">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <ul class="asc-buscador-lista asc-hidden" id="convenioLista" role="listbox" aria-label="Convenios"></ul>
+              </div>
+              <p class="asc-note asc-buscador-pista" id="convenioPista"></p>
+            </div>
+
+            <div class="asc-field asc-field--full">
+              <label class="asc-label" for="procedimiento">Procedimiento</label>
+              <div class="asc-buscador">
+                <input class="asc-input asc-buscador-input" id="procedimiento" name="procedimiento" type="text"
+                       maxlength="160" autocomplete="off" spellcheck="false"
+                       role="combobox" aria-expanded="false" aria-autocomplete="list"
+                       aria-controls="procedimientoLista"
+                       placeholder="Escriba para buscar el procedimiento"/>
+                <button class="asc-buscador-flecha" type="button" tabindex="-1" aria-label="Ver todos los procedimientos">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <ul class="asc-buscador-lista asc-hidden" id="procedimientoLista" role="listbox" aria-label="Procedimientos"></ul>
+              </div>
+              <p class="asc-note asc-buscador-pista" id="procedimientoPista"></p>
+            </div>
+
+            <div class="asc-field asc-field--full">
+              <label class="asc-label" for="observaciones">Observaciones <span class="asc-opcional">(opcional)</span></label>
+              <input class="asc-input" id="observaciones" name="observaciones" type="text" maxlength="200"
+                     placeholder="Se puede dejar en blanco"/>
+            </div>
+          </div>
+        </section>
+
+        <!-- Soporte: escaneo o copia del documento de identidad -->
+        <section class="asc-card" id="cardSoporte">
+          <h3 class="asc-card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>
+            <span id="tituloSoporte">Copia del documento de identidad</span>
+          </h3>
+          <p class="asc-note" id="notaSoporte" style="margin-bottom:16px">
+            Adjunte el escaneo o la copia del documento. Sus páginas se anexan al final del consentimiento.
+          </p>
+
+          <div class="asc-drop" id="soporteDrop">
+            <input class="asc-drop-input" id="soporteInput" name="soporte" type="file"
+                   accept="application/pdf,image/jpeg,image/png" multiple
+                   aria-label="Seleccionar copia del documento"/>
+            <svg class="asc-drop-ic" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v13"/></svg>
+            <p class="asc-drop-title">Arrastre el archivo aquí o <span class="asc-drop-link">búsquelo en el equipo</span></p>
+            <p class="asc-note" id="soporteHint">PDF, JPG o PNG</p>
+          </div>
+
+          <p class="asc-error-msg asc-hidden" id="soporteError"></p>
+          <div class="asc-files" id="soporteList"></div>
+        </section>
+      </div>
+
+      <div class="asc-col">
+
+        <section class="asc-card asc-card--tight">
+          <h3 class="asc-card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            Información de registro
+          </h3>
+
+          <div class="asc-fields">
+            <div class="asc-field">
+              <span class="asc-label">Fecha</span>
+              <div class="asc-readout">
+                <span id="currentDate">—</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              </div>
+              <input type="hidden" id="fechaISO" name="fechaISO"/>
+            </div>
+
+            <div class="asc-field">
+              <label class="asc-label" for="sede">Sede</label>
+              <select class="asc-select" id="sede" name="sede" required></select>
+            </div>
+
+            <div class="asc-fields asc-fields--2" style="gap:14px">
+              <div class="asc-field">
+                <label class="asc-label" for="ciudad">Ciudad</label>
+                <input class="asc-input" id="ciudad" name="ciudad" type="text" placeholder="Ciudad" required disabled/>
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="departamento">Departamento</label>
+                <input class="asc-input" id="departamento" name="departamento" type="text" placeholder="Departamento" required disabled/>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Firma -->
+        <section class="asc-card asc-card--tight asc-sign-card">
+          <h3 class="asc-card-title" style="margin-bottom:8px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+            Firma
+          </h3>
+          <p class="asc-note" id="signatureHint" style="margin-bottom:16px">Firma del titular adulto.</p>
+
+          <div class="asc-sign-body">
+            <div class="asc-sign-pad" id="signatureWrapper">
+              <span class="asc-sign-hint" id="signaturePlaceholder">Firme aquí</span>
+              <canvas class="asc-sign-canvas" id="signatureCanvas" aria-label="Área de firma"></canvas>
+            </div>
+            <p class="asc-error-msg asc-hidden" id="signatureError"></p>
+            <input type="hidden" id="firmaData" name="firmaData"/>
+            <div class="asc-sign-buttons">
+              <button class="asc-btn asc-btn--ghost" type="button" id="clearSignature">Limpiar</button>
+              <button class="asc-btn asc-btn--primary" type="button" id="saveSignature">Guardar firma</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="asc-alert asc-hidden" id="formAlert" role="alert" aria-live="assertive"></div>
+
+    <div class="asc-actions">
+
+      <!-- Qué hacer con el documento generado. El menú se abre hacia
+           arriba porque vive al pie del formulario. -->
+      <div class="asc-modo" id="modoEntrega">
+        <button class="asc-btn asc-btn--ghost asc-btn--big" type="button" id="modoBtn"
+                aria-haspopup="true" aria-expanded="false" aria-controls="modoMenu">
+          <svg class="asc-modo-ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span id="modoLabel">Enviar al buzón</span>
+          <svg class="asc-modo-flecha" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+
+        <div class="asc-modo-menu asc-hidden" id="modoMenu" role="menu" aria-labelledby="modoBtn">
+          <p class="asc-modo-titulo">¿Qué se hace con el documento?</p>
+
+          <button class="asc-modo-op" type="button" role="menuitemradio" data-modo="enviar" aria-checked="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
+            <span class="asc-modo-op-txt">
+              <span class="asc-modo-op-name">Enviar al buzón</span>
+              <span class="asc-modo-op-desc">Correo con el PDF adjunto y archivado en Dropbox</span>
+            </span>
+            <svg class="asc-modo-check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+
+          <button class="asc-modo-op" type="button" role="menuitemradio" data-modo="descargar" aria-checked="false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+            <span class="asc-modo-op-txt">
+              <span class="asc-modo-op-name">Descargar en este equipo</span>
+              <span class="asc-modo-op-desc">El PDF queda en la carpeta de descargas y no sale a ninguna parte</span>
+            </span>
+            <svg class="asc-modo-check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+
+          <button class="asc-modo-op" type="button" role="menuitemradio" data-modo="ambos" aria-checked="false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v10"/><path d="m8 9 4 4 4-4"/><path d="M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"/><path d="M17 6h3a1 1 0 0 1 1 1v4"/><path d="M7 6H4a1 1 0 0 0-1 1v4"/></svg>
+            <span class="asc-modo-op-txt">
+              <span class="asc-modo-op-name">Enviar y descargar</span>
+              <span class="asc-modo-op-desc">Las dos cosas: respaldo en el buzón y copia local</span>
+            </span>
+            <svg class="asc-modo-check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+
+          <p class="asc-modo-pie">La elección se mantiene mientras la página siga abierta.</p>
+        </div>
+      </div>
+
+      <button class="asc-btn asc-btn--primary asc-btn--big" type="submit" id="submitBtn">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+        <span id="submitLabel">Generar y enviar consentimiento</span>
+      </button>
+    </div>
+  </form>
+</div>
+
+<!-- pdf-lib: solo se usa para anexar el escaneo del documento al final del
+     consentimiento. El PDF del formato lo sigue construyendo pdf-writer.js. -->
+<script defer src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+<script defer src="js/script/consentimiento-config.js"></script>
+<script defer src="js/script/pdf-writer.js"></script>
+<script defer src="js/script/consentimiento.js"></script>
+
+</body>
+</html>
