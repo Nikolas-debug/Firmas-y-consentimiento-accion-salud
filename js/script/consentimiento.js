@@ -501,19 +501,15 @@
 
   const FCFG = Object.assign({
     GROSOR: 2.0, USAR_PRESION: true,
-    PRESION_MIN: 0.55, PRESION_MAX: 1.75, ALTURA_LAPIZ: 300
+    PRESION_MIN: 0.55, PRESION_MAX: 1.75
   }, CFG.FIRMA || {});
 
-  function crearFirma(sufijo) {
-    const wrapper     = $('signatureWrapper' + sufijo);
-    const canvas      = $('signatureCanvas' + sufijo);
-    const ctx         = canvas.getContext('2d');
-    const placeholder = $('signaturePlaceholder' + sufijo);
-    const firmaInput  = $('firmaData' + sufijo);
-    const sigError    = $('signatureError' + sufijo);
-    const saveBtn     = $('saveSignature' + sufijo);
+  /* Mecánica del trazo (puntero, presión del lápiz, redimensionado y
+     recorte final). Vive una sola vez, en el lienzo grande del modal. */
+  function crearLienzo(wrapper, canvas, placeholder) {
+    const ctx = canvas.getContext('2d');
 
-    let isDrawing = false, hasStrokes = false, firmaGuardada = false;
+    let isDrawing = false, hasStrokes = false;
     let activeId = null;      // pointerId que está dibujando; el resto se ignora
     let prevPt   = null;      // último punto crudo
     let prevMid  = null;      // último punto medio (extremo de la curva anterior)
@@ -562,17 +558,13 @@
     }
     function markDirty() {
       if (!hasStrokes) { hasStrokes = true; placeholder.style.display = 'none'; }
-      if (firmaGuardada) { firmaGuardada = false; firmaInput.value = ''; saveBtn.textContent = 'Guardar Firma'; }
-      sigError.classList.add('asc-hidden');
     }
 
 
     function activarModoLapiz() {
-      if (modoLapiz || hasStrokes || !FCFG.ALTURA_LAPIZ) return;
+      if (modoLapiz || hasStrokes) return;
       modoLapiz = true;
-      wrapper.style.minHeight = FCFG.ALTURA_LAPIZ + 'px';
       placeholder.textContent = 'Firme aquí con el lápiz';
-      scheduleResize();
     }
 
   
@@ -667,25 +659,12 @@
     function clearSignature() {
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.restore();
-      hasStrokes = false; firmaGuardada = false; firmaInput.value = '';
+      hasStrokes = false;
       isDrawing = false; activeId = null; prevPt = null; prevMid = null;
+      modoLapiz = false;
       placeholder.style.display = 'block';
-      saveBtn.textContent = 'Guardar Firma';
-      sigError.classList.add('asc-hidden');
+      placeholder.textContent = 'Firme aquí';
     }
-    $('clearSignature' + sufijo).addEventListener('click', clearSignature);
-
-    saveBtn.addEventListener('click', () => {
-      if (!hasStrokes) {
-        sigError.textContent = 'Debe trazar la firma antes de guardarla.';
-        sigError.classList.remove('asc-hidden');
-        return;
-      }
-      firmaInput.value = canvas.toDataURL('image/png');
-      firmaGuardada = true;
-      saveBtn.textContent = 'Firma guardada ✓';
-      sigError.classList.add('asc-hidden');
-    });
 
     function firmaJPEG() {
       const w = canvas.width, h = canvas.height;
@@ -709,29 +688,126 @@
       const octx = off.getContext('2d');
       octx.fillStyle = '#ffffff'; octx.fillRect(0, 0, cw, ch);
       octx.drawImage(canvas, minX, minY, cw, ch, 0, 0, cw, ch);
-      return { b64: off.toDataURL('image/jpeg', 0.92).split(',')[1], w: cw, h: ch };
+      return {
+        jpeg: { b64: off.toDataURL('image/jpeg', 0.92).split(',')[1], w: cw, h: ch },
+        png: off.toDataURL('image/png')
+      };
     }
 
     return {
-      wrapper: wrapper,
-      boton: saveBtn,
-      error: sigError,
-      hint: $('signatureHint' + sufijo),
       tieneTrazos: () => hasStrokes,
-      guardada: () => firmaGuardada,
       limpiar: clearSignature,
-      jpeg: firmaJPEG,
-      redimensionar: scheduleResize
+      capturar: firmaJPEG,
+      redimensionar: resizeCanvas
     };
   }
 
-  const firmaPaciente    = crearFirma('');
-  const firmaResponsable = crearFirma('2');
+
+
+  /* =====================================================================
+     PANTALLA DE FIRMA
+     Un solo lienzo grande, compartido: se abre desde el botón de cada
+     bloque y devuelve el trazo al bloque que lo pidió. En el formulario
+     solo queda la vista previa, así nadie firma en un espacio pequeño.
+     ===================================================================== */
+  const modalFirma = $('firmaModal');
+  const lienzo = crearLienzo($('firmaModalWrapper'), $('firmaModalCanvas'),
+                             $('firmaModalPlaceholder'));
+  const errorModal = $('firmaModalError');
+  let panelActivo = null;
+
+  function abrirModalFirma(panel) {
+    panelActivo = panel;
+    $('firmaModalTitulo').textContent = panel.etiqueta;
+    errorModal.classList.add('asc-hidden');
+    lienzo.limpiar();
+    modalFirma.classList.remove('asc-hidden');
+    // El lienzo estaba oculto: hasta ahora no tenía medidas.
+    lienzo.redimensionar();
+  }
+
+  function cerrarModalFirma() {
+    modalFirma.classList.add('asc-hidden');
+    panelActivo = null;
+  }
+
+  $('firmaModalLimpiar').addEventListener('click', () => {
+    lienzo.limpiar();
+    errorModal.classList.add('asc-hidden');
+  });
+  $('firmaModalCancelar').addEventListener('click', cerrarModalFirma);
+
+  $('firmaModalGuardar').addEventListener('click', () => {
+    if (!lienzo.tieneTrazos()) {
+      errorModal.textContent = 'Trace la firma antes de guardarla.';
+      errorModal.classList.remove('asc-hidden');
+      return;
+    }
+    const capturada = lienzo.capturar();
+    if (panelActivo && capturada) panelActivo.recibir(capturada);
+    cerrarModalFirma();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modalFirma.classList.contains('asc-hidden')) {
+      cerrarModalFirma();
+    }
+  });
+
+  /* Bloque de firma del formulario: vista previa + botón. Guardar en la
+     pantalla grande ya confirma; aquí no hay un segundo paso. */
+  function crearFirma(sufijo, etiquetaPorDefecto) {
+    const caja    = $('firmaCaja' + sufijo);
+    const previa  = $('firmaPrevia' + sufijo);
+    const vacia   = $('firmaVacia' + sufijo);
+    const btn     = $('firmarBtn' + sufijo);
+    const btnBorrar = $('firmaBorrar' + sufijo);
+    const sigError  = $('signatureError' + sufijo);
+    const oculto    = $('firmaData' + sufijo);
+    let firma = null;   // { jpeg:{b64,w,h}, png }
+
+    function pintar() {
+      const hay = !!firma;
+      caja.classList.toggle('asc-firma-caja--llena', hay);
+      previa.classList.toggle('asc-hidden', !hay);
+      vacia.classList.toggle('asc-hidden', hay);
+      btnBorrar.classList.toggle('asc-hidden', !hay);
+      btn.textContent = hay ? 'Volver a firmar' : 'Generar firma';
+      if (hay) { previa.src = firma.png; oculto.value = firma.png; }
+      else { previa.removeAttribute('src'); oculto.value = ''; }
+    }
+
+    const panel = {
+      etiqueta: btn.dataset.etiqueta || etiquetaPorDefecto,
+      recibir: (capturada) => {
+        firma = capturada;
+        sigError.classList.add('asc-hidden');
+        pintar();
+      }
+    };
+
+    btn.addEventListener('click', () => abrirModalFirma(panel));
+    btnBorrar.addEventListener('click', () => { firma = null; pintar(); });
+
+    pintar();
+
+    return {
+      wrapper: caja,
+      boton: btn,
+      error: sigError,
+      hint: $('signatureHint' + sufijo),
+      tieneTrazos: () => !!firma,
+      limpiar: () => { firma = null; sigError.classList.add('asc-hidden'); pintar(); },
+      jpeg: () => (firma ? firma.jpeg : null),
+      redimensionar: () => {}
+    };
+  }
+
+  const firmaPaciente    = crearFirma('', 'Firma del paciente');
+  const firmaResponsable = crearFirma('2', 'Firma del responsable de la institución');
   const FIRMAS = [firmaPaciente, firmaResponsable];
 
-  // Al mostrarse el formulario los lienzos aún no tenían medidas.
-  const scheduleResize   = () => FIRMAS.forEach((f) => f.redimensionar());
-  const limpiarFirmas    = () => FIRMAS.forEach((f) => f.limpiar());
+  const limpiarFirmas = () => FIRMAS.forEach((f) => f.limpiar());
 
   const M = {
     X0: 20, X1: 68, X2: 145.5, X3: 190,
@@ -1675,18 +1751,13 @@
       });
     }
 
-    /* Cada panel de firma se revisa igual: trazo hecho y confirmado. */
+    /* Guardar en la pantalla grande ya confirma, así que basta con mirar
+       si el panel tiene firma. */
     function revisarFirma(f, etiqueta) {
       if (!f.tieneTrazos()) {
-        f.error.textContent = etiqueta + ' es obligatoria.';
+        f.error.textContent = etiqueta + ' es obligatoria: pulse "Generar firma".';
         f.error.classList.remove('asc-hidden');
         if (!primerError) primerError = f.wrapper;
-        return false;
-      }
-      if (!f.guardada()) {
-        f.error.textContent = 'Pulse "Guardar firma" para confirmar el trazo.';
-        f.error.classList.remove('asc-hidden');
-        if (!primerError) primerError = f.boton;
         return false;
       }
       return true;
@@ -2353,20 +2424,19 @@
   }
 
   const setup       = $('ascSetup');
-  const stepOrg     = $('stepOrg');
   const stepPersona = $('stepPersona');
   const stepConsent = $('stepConsent');
   const appLogo     = $('appLogo');
   const cardMenores = $('cardMenores');
   const stepCategoria = $('stepCategoria');
-  const PASOS = [stepOrg, stepPersona, stepCategoria, stepConsent];
+  const PASOS = [stepPersona, stepCategoria, stepConsent];
 
-  /* La secuencia real depende de la entidad: si solo ofrece una categoría
-     ese paso se salta, igual que ya pasaba cuando había un solo formato. */
+  /* La entidad ya no se elige: la fija la página. La secuencia depende solo
+     de si esta entidad ofrece más de una categoría de documento. */
   function pasosVisibles() {
     const conCategoria = categoriasDeOrg().length > 1;
-    return conCategoria ? [stepOrg, stepPersona, stepCategoria, stepConsent]
-                        : [stepOrg, stepPersona, stepConsent];
+    return conCategoria ? [stepPersona, stepCategoria, stepConsent]
+                        : [stepPersona, stepConsent];
   }
 
   function tarjeta(art, nombre, descripcion) {
@@ -2381,13 +2451,6 @@
       '</span>';
     return b;
   }
-
-  const orgChoices = $('orgChoices');
-  ORGS.forEach((o) => {
-    const b = tarjeta('<img src="' + o.logoApp + '" alt=""/>', o.nombre, o.subtitulo);
-    b.addEventListener('click', () => elegirOrg(o));
-    orgChoices.appendChild(b);
-  });
 
   const personaChoices = $('personaChoices');
   TIPOS_PERSONA.forEach((t) => {
@@ -2425,7 +2488,9 @@
     });
   }
 
-  function elegirOrg(o) {
+  /* La entidad viene del HTML (data-entidad en el <body>): cada página
+     —consentimiento.html / consentimiento-u.html— fija la suya. */
+  function fijarOrg(o) {
     ORG = o;
     appLogo.src = o.logoApp;
     appLogo.alt = o.nombre;
@@ -2434,7 +2499,6 @@
     poblarSedes();
     poblarCategorias();
     numerarPasos();
-    mostrarPaso(stepPersona);
   }
 
   function elegirPersona(t) {
@@ -2542,7 +2606,6 @@
   function abrirFormulario() {
     setup.classList.add('asc-hidden');
     form.classList.remove('asc-hidden');
-    scheduleResize();          // el canvas estaba oculto: no tenía medidas
     window.scrollTo({ top: 0, behavior: 'smooth' });
     $('nombres').focus({ preventScroll: true });
   }
@@ -2564,10 +2627,9 @@
     CATEGORIA = null;
     form.classList.add('asc-hidden');
     setup.classList.remove('asc-hidden');
-    mostrarPaso(stepOrg);
+    mostrarPaso(stepPersona);
   }
 
-  $('btnVolverOrg').addEventListener('click', () => mostrarPaso(stepOrg));
   $('btnVolverPersona').addEventListener('click', () => mostrarPaso(stepPersona));
   $('btnVolverCategoria').addEventListener('click', () => {
     mostrarPaso(categoriasDeOrg().length > 1 ? stepCategoria : stepPersona);
@@ -2610,7 +2672,15 @@
     form.querySelectorAll('.asc-invalid').forEach((el) => el.classList.remove('asc-invalid'));
   }
 
-  if (ORGS.length === 1) elegirOrg(ORGS[0]);
+  const idEntidad = document.body.dataset.entidad || '';
+  const orgDeLaPagina = ORGS.filter((o) => o.id === idEntidad)[0] || ORGS[0];
+  if (orgDeLaPagina) {
+    fijarOrg(orgDeLaPagina);
+    if (idEntidad && orgDeLaPagina.id !== idEntidad) {
+      console.error('[Consentimiento] data-entidad="' + idEntidad + '" no existe ' +
+        'en ORGANIZACIONES; se usó "' + orgDeLaPagina.id + '".');
+    }
+  }
   if (!ORGS.length || !TIPOS_PERSONA.length) {
     console.error('[Consentimiento] Faltan ORGANIZACIONES o TIPOS_PERSONA en consentimiento-config.js');
   }

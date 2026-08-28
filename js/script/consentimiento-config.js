@@ -522,8 +522,7 @@ window.CONSENT_CONFIG = {
     GROSOR:       2.0,
     USAR_PRESION: true,
     PRESION_MIN:  0.55,
-    PRESION_MAX:  1.75,
-    ALTURA_LAPIZ: 300
+    PRESION_MAX:  1.75
   },
   SOPORTE: {
     ACTIVO:       true,

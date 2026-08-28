@@ -838,6 +838,105 @@
 .asc-sign-buttons { display: flex; gap: 14px; }
 .asc-sign-buttons .asc-btn { flex: 1; }
 
+/* ---------- Firma: vista previa y pantalla grande --------------------- */
+/* En el formulario ya no se dibuja: solo se ve lo firmado. Así nadie firma
+   en un espacio pequeño por error con la tableta. */
+.asc-firma-caja {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 132px;
+  padding: 10px;
+  margin-bottom: 14px;
+  background: var(--asc-surface-2);
+  border: 2px dashed var(--asc-border);
+  border-radius: var(--asc-radius);
+}
+
+.asc-firma-previa {
+  max-width: 100%;
+  max-height: 112px;
+  object-fit: contain;
+}
+
+.asc .asc-firma-vacia {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--asc-text-muted);
+}
+
+/* Con firma puesta el recuadro deja de verse "pendiente". */
+.asc-firma-caja--llena {
+  background: var(--asc-surface);
+  border-style: solid;
+  border-color: var(--asc-primary);
+}
+
+/* ---------- Pantalla de firma ---------------------------------------- */
+.asc-firma-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 43, 61, .55);
+}
+
+.asc-firma-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(1100px, 100%);
+  height: min(720px, 100%);
+  padding: 22px 24px 20px;
+  background: var(--asc-surface);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(15, 43, 61, .3);
+}
+
+.asc-firma-cab { flex: none; }
+.asc .asc-firma-titulo {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--asc-text);
+  margin-bottom: 4px;
+}
+
+/* El lienzo se come todo el alto que sobre: es el punto de todo esto. */
+.asc-firma-lienzo {
+  position: relative;
+  flex: 1;
+  min-height: 220px;
+  background: #fff;
+  border: 2px dashed var(--asc-border);
+  border-radius: var(--asc-radius);
+  overflow: hidden;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.asc-firma-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+.asc-firma-hueco { flex: 1; }
+
+@media (max-width: 640px) {
+  .asc-firma-modal { padding: 10px; }
+  .asc-firma-panel { height: 100%; padding: 16px; }
+  .asc-firma-hueco { display: none; }
+  .asc-firma-acciones .asc-btn { flex: 1; }
+}
+
 /* ---------- Aviso ----------------------------------------------------- */
 .asc-alert {
   margin-top: 24px;
