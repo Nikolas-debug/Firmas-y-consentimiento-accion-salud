@@ -1,43 +1,36 @@
 var CONFIG = {
-
   SECRETO: 'CLAVE-SECRETA-PARA-ENVIO-DE-CORREOS-CONSENTIMIENTOS',
-
   DESTINATARIO: 'accion.saludac@gmail.com',
-
+ 
   ASUNTO_PREFIJO: '[Consentimiento ASI-FOR-018]',
-
   GUARDAR_EN_DRIVE: false,
   CARPETA_DRIVE: 'Consentimientos ASI-FOR-018',
-
+  /* El consentimiento puede traer anexado el escaneo del documento, así
+     que pesa más que el formato solo. Gmail admite 25 MB; el formulario
+     ya avisa a partir de 18 MB. */
   MAX_BYTES: 20 * 1024 * 1024,
-
   DROPBOX_ACTIVO: true,
-
-  // Carpeta raíz dentro de Dropbox. Debajo se crean subcarpetas por año
-  // y mes: /Consentimientos/2026/08/ASI-FOR-018_1023456789_2026-08-24.pdf
   DROPBOX_CARPETA: '/Consentimientos'
 };
-
 var DBX_PROPS = {
   APP_KEY:       'DROPBOX_APP_KEY',
   APP_SECRET:    'DROPBOX_APP_SECRET',
   REFRESH_TOKEN: 'DROPBOX_REFRESH_TOKEN'
 };
 
-
 function doPost(e) {
   try {
     if (!e || !e.postData || !e.postData.contents) {
       return respuesta(false, 'Petición vacía.');
     }
-
+ 
     var datos;
     try {
       datos = JSON.parse(e.postData.contents);
     } catch (err) {
       return respuesta(false, 'El cuerpo no es JSON válido.');
     }
-
+ 
     // Un secreto vacío aceptaría cualquier petición: mejor fallar en seco.
     if (!CONFIG.SECRETO) {
       return respuesta(false, 'El servidor no tiene secreto configurado.');
@@ -48,21 +41,21 @@ function doPost(e) {
     if (!datos.pdfBase64) {
       return respuesta(false, 'Falta el documento.');
     }
-
+ 
     var destino = CONFIG.DESTINATARIO || datos.destinatario;
     if (!destino || destino.indexOf('@') === -1) {
       return respuesta(false, 'Destinatario no configurado.');
     }
-
+ 
     var bytes = Utilities.base64Decode(datos.pdfBase64);
     if (bytes.length > CONFIG.MAX_BYTES) {
       return respuesta(false, 'El documento excede el tamaño permitido.');
     }
-
+ 
     var nombreArchivo = limpiarNombre(datos.nombreArchivo || 'consentimiento.pdf');
     var pdf = Utilities.newBlob(bytes, 'application/pdf', nombreArchivo);
     var info = datos.datos || {};
-
+ 
     MailApp.sendEmail({
       to: destino,
       subject: '[Consentimiento ' + (info.codigo || 'ASI-FOR-018') + '] ' +
@@ -71,7 +64,7 @@ function doPost(e) {
       attachments: [pdf],
       name: 'Consentimientos Acción Salud'
     });
-
+ 
     if (CONFIG.GUARDAR_EN_DRIVE) {
       guardarEnDrive(pdf);
     }
@@ -88,23 +81,23 @@ function doPost(e) {
         avisarFalloDropbox(destino, nombreArchivo, err.message);
       }
     }
-
+ 
     return respuesta(true, null, { archivo: nombreArchivo, dropbox: dropbox });
-
+ 
   } catch (err) {
     // Nunca devolvemos la traza completa al navegador
     console.error(err);
     return respuesta(false, 'Error interno al procesar el documento.');
   }
 }
-
+ 
 function doGet() {
   return ContentService
     .createTextOutput(JSON.stringify({ ok: true, servicio: 'Consentimientos ASI-FOR-018' }))
     .setMimeType(ContentService.MimeType.JSON);
 }
-
-
+ 
+ 
 function respuesta(ok, error, extra) {
   var cuerpo = { ok: ok };
   if (error) cuerpo.error = error;
@@ -113,11 +106,11 @@ function respuesta(ok, error, extra) {
     .createTextOutput(JSON.stringify(cuerpo))
     .setMimeType(ContentService.MimeType.JSON);
 }
-
+ 
 function limpiarNombre(nombre) {
   return String(nombre).replace(/[\/\\:*?"<>|\r\n]/g, '_').slice(0, 120);
 }
-
+ 
 function cuerpoCorreo(info, nombreArchivo) {
   var l = [];
   l.push('Nuevo consentimiento: ' + (info.consentimiento || 'uso de imagen') +
@@ -131,20 +124,22 @@ function cuerpoCorreo(info, nombreArchivo) {
   l.push('Expedido en:    ' + (info.lugarExpedicion || '—'));
   l.push('Sede:           ' + (info.sede || '—'));
   l.push('Ciudad:         ' + (info.ciudad || '—') + ', ' + (info.departamento || '—'));
+  if (info.responsable) l.push('Responsable:    ' + info.responsable);
   l.push('Fecha:          ' + (info.fecha || '—'));
-
+ 
   var menores = info.menores || [];
   if (menores.length) {
     l.push('');
     l.push('Menores autorizados (' + menores.length + '):');
     for (var i = 0; i < menores.length; i++) {
-      l.push('  ' + (i + 1) + '. ' + menores[i].nombre + ' — T.I. ' + menores[i].documento);
+      l.push('  ' + (i + 1) + '. ' + menores[i].nombre + ' — ' +
+             (menores[i].tipoDoc || 'T.I.') + ' ' + menores[i].documento);
     }
   } else {
     l.push('');
     l.push('Sin menores asociados.');
   }
-
+ 
   var soporte = info.soporte || [];
   l.push('');
   l.push(soporte.length
@@ -157,13 +152,13 @@ function cuerpoCorreo(info, nombreArchivo) {
   l.push('— Mensaje automático del formulario de consentimientos.');
   return l.join('\n');
 }
-
+ 
 function guardarEnDrive(pdf) {
   var it = DriveApp.getFoldersByName(CONFIG.CARPETA_DRIVE);
   var carpeta = it.hasNext() ? it.next() : DriveApp.createFolder(CONFIG.CARPETA_DRIVE);
   carpeta.createFile(pdf);
 }
-
+ 
 /**
  * Sube el PDF a Dropbox y devuelve la ruta final.
  * @param {Blob} pdf Documento ya construido.
@@ -174,7 +169,7 @@ function guardarEnDrive(pdf) {
 function subirADropbox(pdf, nombreArchivo, info) {
   var token = obtenerTokenDropbox();
   var ruta  = rutaDropbox(nombreArchivo, info);
-
+ 
   var args = {
     path: ruta,
     mode: 'add',          // nunca sobrescribe un consentimiento existente
@@ -182,7 +177,7 @@ function subirADropbox(pdf, nombreArchivo, info) {
     mute: true,           // sin notificación push por cada archivo
     strict_conflict: false
   };
-
+ 
   var resp = UrlFetchApp.fetch('https://content.dropboxapi.com/2/files/upload', {
     method: 'post',
     contentType: 'application/octet-stream',
@@ -194,24 +189,24 @@ function subirADropbox(pdf, nombreArchivo, info) {
     payload: pdf.getBytes(),
     muteHttpExceptions: true
   });
-
+ 
   var codigo = resp.getResponseCode();
   var cuerpo = resp.getContentText();
-
+ 
   if (codigo !== 200) {
     throw new Error('Dropbox rechazó la subida (HTTP ' + codigo + '): ' +
                     cuerpo.slice(0, 300));
   }
-
+ 
   var datos = JSON.parse(cuerpo);
   return datos.path_display || ruta;
 }
-
+ 
 function rutaDropbox(nombreArchivo, info) {
   var fecha = new Date();
   var iso = (info && (info.fechaISO || info.fecha)) || '';
   var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
-
+ 
   var anio, mes;
   if (m) {
     anio = m[1];
@@ -220,25 +215,30 @@ function rutaDropbox(nombreArchivo, info) {
     anio = String(fecha.getFullYear());
     mes  = ('0' + (fecha.getMonth() + 1)).slice(-2);
   }
-
+ 
   // Una sola barra entre tramos, sin barra final.
   var raiz = ('/' + CONFIG.DROPBOX_CARPETA).replace(/\/+/g, '/').replace(/\/$/, '');
   return raiz + '/' + anio + '/' + mes + '/' + nombreArchivo;
 }
-
+ 
+/**
+ * Cambia el refresh token por un access token de corta duración.
+ * Se guarda en caché los 3 minutos siguientes: varias firmas seguidas
+ * reutilizan el mismo token en lugar de pedir uno nuevo cada vez.
+ */
 function obtenerTokenDropbox() {
   var cache = CacheService.getScriptCache();
   var enCache = cache.get('dbx_token');
   if (enCache) return enCache;
-
+ 
   var props = PropertiesService.getScriptProperties();
   var appKey    = props.getProperty(DBX_PROPS.APP_KEY);
   var appSecret = props.getProperty(DBX_PROPS.APP_SECRET);
   var refresh   = props.getProperty(DBX_PROPS.REFRESH_TOKEN);
-
+ 
   if (!appKey || !appSecret || !refresh) {
     throw new Error('Faltan credenciales de Dropbox en las propiedades ' +
-                    'del script. Repita los pasos 1 y 2 más abajo.');
+                    'del script. Repita los pasos 3 y 4 de GUIA-DROPBOX.md.');
   }
 
   var resp = UrlFetchApp.fetch('https://api.dropboxapi.com/oauth2/token', {
@@ -252,27 +252,30 @@ function obtenerTokenDropbox() {
     },
     muteHttpExceptions: true
   });
-
+ 
   if (resp.getResponseCode() !== 200) {
     throw new Error('No se pudo renovar el acceso a Dropbox (HTTP ' +
                     resp.getResponseCode() + '). Si dice "invalid_grant", ' +
                     'el refresh token fue revocado: genere uno nuevo.');
   }
-
+ 
   var datos = JSON.parse(resp.getContentText());
   if (!datos.access_token) {
     throw new Error('Dropbox no devolvió un token de acceso.');
   }
+ 
+  // expires_in viene en segundos (típicamente 14400). Se cachea bastante
+  // menos, para no usar jamás un token a punto de caducar.
   cache.put('dbx_token', datos.access_token, 180);
   return datos.access_token;
 }
-
+ 
 function escaparASCII(texto) {
-  return String(texto).replace(/[-￿]/g, function (c) {
+  return String(texto).replace(/[\u007f-\uffff]/g, function (c) {
     return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4);
   });
 }
-
+ 
 function avisarFalloDropbox(destino, nombreArchivo, mensajeError) {
   try {
     MailApp.sendEmail({
@@ -297,30 +300,32 @@ function avisarFalloDropbox(destino, nombreArchivo, mensajeError) {
   }
 }
 
+/*SET-UP DROPBOX*/
 function dropboxPaso1_generarEnlace() {
   var APP_KEY = 'zaw4nhju7gwbgym';   // ← pegue aquí su App key
 
   if (!APP_KEY) throw new Error('Escriba su App key dentro de esta función.');
-
+ 
   var url = 'https://www.dropbox.com/oauth2/authorize' +
             '?client_id=' + encodeURIComponent(APP_KEY) +
             '&response_type=code' +
             '&token_access_type=offline';
-
+ 
   Logger.log('1. Abra este enlace en el navegador:\n\n' + url +
              '\n\n2. Autorice la app y copie el código que aparece.' +
              '\n3. Péguelo en dropboxPaso2_guardarCredenciales().');
 }
+ 
 
 function dropboxPaso2_guardarCredenciales() {
   var APP_KEY    = 'zaw4nhju7gwbgym';   // ← App key
   var APP_SECRET = 'ss44uut58miwz1t';   // ← App secret
-  var CODIGO     = 'PEGUE_AQUI_UN_CODIGO_NUEVO_DEL_PASO_1';   // ← código del paso 1 (se usa una sola vez)
-
+  var CODIGO     = 'EhTIoYSWjvAAAAAAAAADtes9yXuKy4KsvMrKgpIL9ik';
+ 
   if (!APP_KEY || !APP_SECRET || !CODIGO) {
     throw new Error('Complete APP_KEY, APP_SECRET y CODIGO dentro de esta función.');
   }
-
+ 
   var resp = UrlFetchApp.fetch('https://api.dropboxapi.com/oauth2/token', {
     method: 'post',
     headers: {
@@ -332,33 +337,37 @@ function dropboxPaso2_guardarCredenciales() {
     },
     muteHttpExceptions: true
   });
-
+ 
   if (resp.getResponseCode() !== 200) {
     throw new Error('Dropbox rechazó el código (HTTP ' + resp.getResponseCode() +
                     '): ' + resp.getContentText() +
                     '\nRecuerde que el código del paso 1 sirve una sola vez: ' +
                     'si ya lo usó, genere uno nuevo.');
   }
-
+ 
   var datos = JSON.parse(resp.getContentText());
   if (!datos.refresh_token) {
     throw new Error('Dropbox no devolvió refresh token. Verifique que el ' +
                     'enlace del paso 1 incluía token_access_type=offline.');
   }
-
+ 
   PropertiesService.getScriptProperties().setProperties({
     DROPBOX_APP_KEY:       APP_KEY,
     DROPBOX_APP_SECRET:    APP_SECRET,
     DROPBOX_REFRESH_TOKEN: datos.refresh_token
   });
-
+ 
   Logger.log('✓ Credenciales guardadas en las propiedades del script.\n\n' +
              'AHORA: borre los valores de APP_KEY, APP_SECRET y CODIGO de ' +
              'esta función y guarde. Ya no hacen falta aquí.\n\n' +
              'Después ponga DROPBOX_ACTIVO: true en CONFIG y ejecute ' +
              'dropboxPaso3_probar().');
 }
-
+ 
+/**
+ * PASO 3. Sube un PDF de prueba para confirmar que todo funciona.
+ * Deja el archivo en la carpeta del mes en curso.
+ */
 function dropboxPaso3_probar() {
   var pdf = Utilities.newBlob('Prueba de archivado.', 'application/pdf',
                               'PRUEBA_dropbox.pdf');
@@ -367,7 +376,9 @@ function dropboxPaso3_probar() {
              '\n\nPuede borrarlo desde Dropbox. Si ve esto, el archivado ' +
              'automático ya está funcionando.');
 }
-
+ 
+/** Ejecute esta función una vez desde el editor para probar el envío
+ *  y para que Google le pida los permisos necesarios. */
 function pruebaDeEnvio() {
   var destino = CONFIG.DESTINATARIO;
   if (!destino) throw new Error('Defina CONFIG.DESTINATARIO para la prueba.');

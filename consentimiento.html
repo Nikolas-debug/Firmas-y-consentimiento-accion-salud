@@ -55,36 +55,21 @@
     <path d="M34 51h28M34 56h28" stroke="#5fbdbd" stroke-width="1.6" stroke-linecap="round"/>
   </symbol>
 
-  <symbol id="ic-testigo" viewBox="0 0 96 96">
-    <rect x="6" y="44" width="26" height="30" rx="4" fill="#eaf4fb"/>
-    <path d="M11 51h16M11 57h16M11 63h10" stroke="#7fb8dd" stroke-width="2.6" stroke-linecap="round"/>
-    <rect x="8" y="65" width="8" height="8" rx="2.5" fill="#4bb8e8"/>
-    <path d="M23 13l12 4.5v11c0 8-5 14-12 17-7-3-12-9-12-17v-11z" fill="#3b7ddb"/>
-    <path d="M18 27.5l3.5 3.5 7-7" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-    <path d="M36 86c0-12.5 11-20.5 25-20.5s25 8 25 20.5z" fill="#38a9e0"/>
-    <path d="M53 54h16v12a8 8 0 0 1-16 0z" fill="#f0b995"/>
-    <circle cx="61" cy="42" r="17" fill="#f7c9a4"/>
-    <path d="M44 40a17 17 0 0 1 34 0z" fill="#2f4858"/>
-    <path d="M44 40h-6a3 3 0 0 0 0 6h8z" fill="#3d5b70"/>
-    <circle cx="61" cy="24" r="2.5" fill="#3d5b70"/>
-    <circle cx="55" cy="45" r="1.9" fill="#2c3e50"/>
-    <circle cx="68" cy="45" r="1.9" fill="#2c3e50"/>
-    <path d="M56.5 52c2.8 2.5 5.7 2.5 8.5 0" stroke="#2c3e50" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <!-- Categorías de documento -->
+  <symbol id="ic-cat-consentimiento" viewBox="0 0 96 96">
+    <rect x="14" y="10" width="52" height="68" rx="6" fill="#eaf4fb"/>
+    <path d="M24 26h32M24 37h32M24 48h22" stroke="#7fb8dd" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M24 59h16" stroke="#b9d9ee" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M40 74c8-12 16-18 24-14 5-8 13-8 18 0-2 14-10 22-20 26-9-3-16-7-22-12z" fill="#5fc4cb"/>
+    <path d="M48 76c6-6 12-9 18-9" stroke="#eaf4fb" stroke-width="2.6" stroke-linecap="round" fill="none"/>
   </symbol>
 
-  <symbol id="ic-medico" viewBox="0 0 96 96">
-    <path d="M18 86c0-13 11.5-21 30-21s30 8 30 21z" fill="#f2f5f9"/>
-    <path d="M48 65l-9 3 9 18 9-18z" fill="#5fc4cb"/>
-    <path d="M39 68l9 6 9-6" stroke="#e2e8f0" stroke-width="1.6" fill="none"/>
-    <path d="M40 52h16v13a8 8 0 0 1-16 0z" fill="#f0b995"/>
-    <circle cx="48" cy="40" r="18" fill="#f7c9a4"/>
-    <path d="M29 41c0-12.5 8.5-21.5 19-21.5s19 9 19 21.5c-2-1.5-3-5-3.5-9-5.5 4-12 5-18.5 3.5-4.5-1-8 .5-11 3.5-1.6 1.6-3.4 2.3-5 2z" fill="#6b4632"/>
-    <circle cx="41" cy="41" r="1.9" fill="#2c3e50"/>
-    <circle cx="55" cy="41" r="1.9" fill="#2c3e50"/>
-    <path d="M43.5 48.5c2.8 2.6 6.2 2.6 9 0" stroke="#2c3e50" stroke-width="2" stroke-linecap="round" fill="none"/>
-    <path d="M39 67c0 9 5.5 14 12 14s12-5 12-13.5" stroke="#3f8fb0" stroke-width="3" fill="none" stroke-linecap="round"/>
-    <circle cx="63" cy="65" r="4.5" fill="#4bb8e8"/>
-    <circle cx="63" cy="65" r="1.8" fill="#eaf4fb"/>
+  <symbol id="ic-cat-certificado" viewBox="0 0 96 96">
+    <rect x="10" y="16" width="66" height="50" rx="6" fill="#eaf4fb"/>
+    <path d="M20 30h30M20 40h30M20 50h20" stroke="#7fb8dd" stroke-width="3.4" stroke-linecap="round"/>
+    <circle cx="66" cy="50" r="17" fill="#3b7ddb"/>
+    <path d="M58 50l5.5 5.5L74 45" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M57 64l-3 18 12-6 12 6-3-18" fill="#5fc4cb"/>
   </symbol>
 
   <!-- Tipos de consentimiento -->
@@ -138,7 +123,7 @@
 </svg>
 
 <header class="asc-header">
-  <img onclick="window.location.href='index.html'" class="asc-logo" id="appLogo" src="images/logo2.png" alt="Acción Salud para Todos SAS"/>
+  <img class="asc-logo" id="appLogo" src="images/logo2.png" alt="Acción Salud para Todos SAS"/>
 </header>
 
 <div class="asc">
@@ -168,12 +153,12 @@
         </div>
       </div>
 
-      <!-- Paso 3: tipo de consentimiento -->
-      <div class="asc-setup-step asc-hidden" id="stepConsent">
-        <p class="asc-setup-eyebrow" data-paso="3">Paso 3</p>
-        <h2 class="asc-setup-title">¿Qué consentimiento va a firmar?</h2>
-        <p class="asc-setup-lead">Cada consentimiento genera su propio formato y pide datos distintos.</p>
-        <div class="asc-choices asc-choices--2" id="consentChoices"></div>
+      <!-- Paso 3: categoría del documento -->
+      <div class="asc-setup-step asc-hidden" id="stepCategoria">
+        <p class="asc-setup-eyebrow">Paso 3</p>
+        <h2 class="asc-setup-title">¿Qué tipo de documento va a firmar?</h2>
+        <p class="asc-setup-lead">Elija primero la clase de documento; en el siguiente paso escoge el formato.</p>
+        <div class="asc-choices asc-choices--2" id="categoriaChoices"></div>
         <div class="asc-setup-foot">
           <button class="asc-btn asc-btn--link" type="button" id="btnVolverPersona">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -182,12 +167,22 @@
         </div>
       </div>
 
+      <!-- Paso 4: formato concreto dentro de la categoría -->
+      <div class="asc-setup-step asc-hidden" id="stepConsent">
+        <p class="asc-setup-eyebrow">Paso 4</p>
+        <h2 class="asc-setup-title" id="tituloPasoConsent">¿Qué consentimiento va a firmar?</h2>
+        <p class="asc-setup-lead" id="leadPasoConsent">Cada formato pide datos distintos.</p>
+        <div class="asc-choices asc-choices--2" id="consentChoices"></div>
+        <div class="asc-setup-foot">
+          <button class="asc-btn asc-btn--link" type="button" id="btnVolverCategoria">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            <span id="btnVolverCategoriaLabel">Cambiar tipo de documento</span>
+          </button>
+        </div>
+      </div>
+
     </div>
   </section>
-
-  <!-- ===================================================================
-       FORMULARIO
-       =================================================================== -->
   <form id="consentForm" class="asc-wrap asc-hidden" novalidate>
 
     <!-- Resumen de lo elegido en la pantalla previa -->
@@ -438,6 +433,45 @@
             </div>
           </div>
         </section>
+
+        <!-- Responsable de la institución: solo en los formatos que lo piden -->
+        <section class="asc-card asc-card--tight asc-sign-card asc-hidden" id="cardResponsable">
+          <h3 class="asc-card-title" style="margin-bottom:8px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Responsable de la institución
+          </h3>
+
+          <div class="asc-field" style="margin-bottom:16px">
+            <label class="asc-label" for="responsable">Quién firma por la institución</label>
+            <div class="asc-buscador">
+              <input class="asc-input asc-buscador-input" id="responsable" name="responsable" type="text"
+                     maxlength="120" autocomplete="off" spellcheck="false"
+                     role="combobox" aria-expanded="false" aria-autocomplete="list"
+                     aria-controls="responsableLista"
+                     placeholder="Escriba para buscar"/>
+              <button class="asc-buscador-flecha" type="button" tabindex="-1" aria-label="Ver los responsables">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <ul class="asc-buscador-lista asc-hidden" id="responsableLista" role="listbox" aria-label="Responsables"></ul>
+            </div>
+            <p class="asc-note asc-buscador-pista" id="responsablePista"></p>
+          </div>
+
+          <p class="asc-note" id="signatureHint2" style="margin-bottom:16px">Firma de quien recibe por la institución.</p>
+
+          <div class="asc-sign-body">
+            <div class="asc-sign-pad" id="signatureWrapper2">
+              <span class="asc-sign-hint" id="signaturePlaceholder2">Firme aquí</span>
+              <canvas class="asc-sign-canvas" id="signatureCanvas2" aria-label="Área de firma del responsable"></canvas>
+            </div>
+            <p class="asc-error-msg asc-hidden" id="signatureError2"></p>
+            <input type="hidden" id="firmaData2" name="firmaData2"/>
+            <div class="asc-sign-buttons">
+              <button class="asc-btn asc-btn--ghost" type="button" id="clearSignature2">Limpiar</button>
+              <button class="asc-btn asc-btn--primary" type="button" id="saveSignature2">Guardar firma</button>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
 
@@ -492,6 +526,18 @@
       <button class="asc-btn asc-btn--primary asc-btn--big" type="submit" id="submitBtn">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
         <span id="submitLabel">Generar y enviar consentimiento</span>
+      </button>
+
+      <!-- Tras generar, el formulario se queda como está para poder volver a
+           descargar el mismo documento. Se limpia solo al pedir uno nuevo. -->
+      <button class="asc-btn asc-btn--ghost asc-btn--big asc-hidden" type="button" id="btnDescargarOtraVez">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+        Descargar de nuevo
+      </button>
+
+      <button class="asc-btn asc-btn--primary asc-btn--big asc-hidden" type="button" id="btnNuevoConsentimiento">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Generar nuevo consentimiento
       </button>
     </div>
   </form>

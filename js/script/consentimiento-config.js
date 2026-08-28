@@ -2,10 +2,30 @@ window.CONSENT_CONFIG = {
   MAX_MENORES: 4,
 
   LIMPIAR_SEDE: false,
+  
+  CATEGORIAS: [
+    {
+      id: 'consentimiento',
+      label: 'Consentimiento',
+      descripcion: 'Autorizaciones que firma el paciente',
+      icono: 'ic-cat-consentimiento',
+      titulo: '¿Qué consentimiento va a firmar?',
+      lead: 'Cada consentimiento genera su propio formato y pide datos distintos.'
+    },
+    {
+      id: 'certificado',
+      label: 'Certificado',
+      descripcion: 'Constancias de la atención prestada',
+      icono: 'ic-cat-certificado',
+      titulo: '¿Qué certificado va a generar?',
+      lead: 'Cada certificado genera su propio formato y pide datos distintos.'
+    }
+  ],
 
   CONSENTIMIENTOS: [
     {
       id: 'imagen',
+      categoria: 'consentimiento',
       label: 'Uso de derechos de imagen',
       descripcion: 'Fotografías y producciones audiovisuales',
       icono: 'ic-consent-imagen',
@@ -16,12 +36,13 @@ window.CONSENT_CONFIG = {
       campos: {
         lugarExpedicion: true,
         menores:         true,
-        soporte:         true,
+        soporte:         false,
         finalidad:       false
       }
     },
     {
       id: 'datos',
+      categoria: 'consentimiento',
       label: 'Tratamiento de datos personales',
       descripcion: 'Ley 1581 de 2012 y Decreto 1377 de 2013',
       icono: 'ic-consent-datos',
@@ -37,14 +58,13 @@ window.CONSENT_CONFIG = {
       },
       bloqueFirma: {
         paciente:    'paciente',
-        acompanante: 'testigo',
-        testigo:     'testigo',
-        medico:      'testigo'
+        acompanante: 'paciente'
       },
       sitioWeb: 'www.esap.edu.co'
     },
     {
       id: 'creas_conecta',
+      categoria: 'consentimiento',
       label: 'Datos personales — CREAS Conecta',
       descripcion: 'Banco de hojas de vida del proyecto CREAS Conecta',
       icono: 'ic-consent-conecta',
@@ -64,13 +84,12 @@ window.CONSENT_CONFIG = {
       },
       bloqueFirma: {
         paciente:    'paciente',
-        acompanante: 'testigo',
-        testigo:     'testigo',
-        medico:      'testigo'
+        acompanante: 'paciente'
       }
     },
     {
       id: 'pacientes_sf',
+      categoria: 'consentimiento',
       label: 'Consentimiento informado de pacientes',
       descripcion: 'Hogar de Paso y consulta externa',
       icono: 'ic-consent-pacientes',
@@ -87,17 +106,22 @@ window.CONSENT_CONFIG = {
         soporte:         false,
         finalidad:       false,
         entidad:         true,
-        representado:    true
+        representado:    true,
+        responsable:     true
       },
       bloqueFirma: {
         paciente:    'paciente',
-        acompanante: 'paciente',
-        testigo:     'institucion',
-        medico:      'institucion'
-      }
+        acompanante: 'paciente'
+      },
+
+      RESPONSABLES: [
+        { nombre: 'YAJAIRA MARIA PETRO JIMENEZ',      documento: '50914875' },
+        { nombre: 'MARIA ALEJANDRA HERNANDEZ ESPINOSA', documento: '1002999614' }
+      ]
     },
     {
       id: 'certificado_atencion',
+      categoria: 'certificado',
       label: 'Certificado de atención',
       descripcion: 'Constancia de los servicios recibidos',
       icono: 'ic-consent-certificado',
@@ -108,7 +132,7 @@ window.CONSENT_CONFIG = {
       campos: {
         lugarExpedicion: false,
         menores:         false,
-        soporte:         false,
+        soporte:         true,
         finalidad:       false,
         entidad:         false,
         representado:    false,
@@ -476,35 +500,13 @@ window.CONSENT_CONFIG = {
         tituloFirma:   'Firma autorización acompañante o familiar.',
         captionNombre: 'Nombre del acompañante o familiar'
       }
-    },
-    {
-      id: 'testigo',
-      label: 'Testigo',
-      descripcion: 'Da fe de la firma del consentimiento',
-      tituloDatos: 'Datos del testigo',
-      hintFirma: 'Firma del testigo.',
-      hintFirmaMenores: 'Firma del testigo.',
-      permiteMenores: false,
-      pdf: {
-        tituloBloque:  'Testigo',
-        tituloFirma:   'Firma del testigo.',
-        captionNombre: 'Nombre del testigo'
-      }
-    },
-    {
-      id: 'medico',
-      label: 'Médico',
-      descripcion: 'Profesional que realiza el procedimiento',
-      tituloDatos: 'Datos del médico',
-      hintFirma: 'Firma del médico.',
-      hintFirmaMenores: 'Firma del médico.',
-      permiteMenores: false,
-      pdf: {
-        tituloBloque:  'Médico',
-        tituloFirma:   'Firma del médico.',
-        captionNombre: 'Nombre del médico'
-      }
     }
+  ],
+
+  TIPOS_DOC_MENOR: [
+    { id: 'TI',  sigla: 'T.I.',   label: 'Tarjeta de Identidad' },
+    { id: 'RC',  sigla: 'R.C.',   label: 'Registro Civil' },
+    { id: 'CNV', sigla: 'C.N.V.', label: 'Certificado de Nacido Vivo' }
   ],
 
   TIPOS_DOC: [

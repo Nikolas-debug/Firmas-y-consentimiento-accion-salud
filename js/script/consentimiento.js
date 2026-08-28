@@ -15,6 +15,9 @@
   const MAX_MENORES   = CFG.MAX_MENORES;
   const LIMPIAR_SEDE  = CFG.LIMPIAR_SEDE;
   const TIPOS_DOC     = CFG.TIPOS_DOC;
+  const TIPOS_DOC_MENOR = CFG.TIPOS_DOC_MENOR || [
+    { id: 'TI', sigla: 'T.I.', label: 'Tarjeta de Identidad' }
+  ];
   const ORGS          = CFG.ORGANIZACIONES  || [];
   const TIPOS_PERSONA = CFG.TIPOS_PERSONA   || [];
   const CONSENTS      = CFG.CONSENTIMIENTOS || [];
@@ -29,6 +32,21 @@
     if (!ORG) return [];
     const permitidos = ORG.consentimientos || CONSENTS.map((c) => c.id);
     return CONSENTS.filter((c) => permitidos.indexOf(c.id) !== -1);
+  };
+
+  const CATEGORIAS = CFG.CATEGORIAS || [];
+  let CATEGORIA = null;
+
+  /* Solo se ofrecen las categorías que la entidad tenga realmente entre
+     sus formatos, en el orden del catálogo. */
+  const categoriasDeOrg = () => {
+    const usadas = consentsDeOrg().map((c) => c.categoria);
+    return CATEGORIAS.filter((cat) => usadas.indexOf(cat.id) !== -1);
+  };
+
+  const consentsDeCategoria = () => {
+    if (!CATEGORIA) return consentsDeOrg();
+    return consentsDeOrg().filter((c) => c.categoria === CATEGORIA.id);
   };
   const pide = (campo) => !!(CONSENT && CONSENT.campos && CONSENT.campos[campo]);
 
@@ -63,9 +81,6 @@
   }
   const titleCase = (s) => s.replace(/\s+/g, ' ').trim();
 
-  /* ---- Filtros de entrada --------------------------------------------
-     Depuran el valor mientras se escribe (también al pegar) conservando
-     la posición del cursor. `patron` describe lo que SÍ se permite.      */
   function filtrarEntrada(input, patron) {
     input.addEventListener('input', () => {
       const antes = input.value;
@@ -82,10 +97,7 @@
   }
   const NO_DIGITOS = /[^0-9]/g;
   const NO_ALFANUM = /[^0-9A-Za-z]/g;
-  // Letras, espacios, coma, punto, apóstrofo y guion (nombres de ciudades)
   const NO_LUGAR   = /[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ .,'\-]/g;
-
-  // "Ciudad, Departamento": dos bloques de letras separados por una coma
   const PARTE_LUGAR = "[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ.'\\- ]{2,}";
   const RE_LUGAR = new RegExp('^' + PARTE_LUGAR + ',\\s*' + PARTE_LUGAR + '$');
 
@@ -95,7 +107,7 @@
       (i > 0 && PALABRAS_MINUS.indexOf(w) !== -1) ? w : w.charAt(0).toUpperCase() + w.slice(1)
     ).join(' ');
   }
-  // "  monteria ,  cordoba " -> "Montería, Córdoba" (sin inventar tildes)
+
   function normalizarLugar(v) {
     const partes = v.split(',').map((p) => p.trim()).filter(Boolean);
     if (partes.length < 2) return tituloCase(v);
@@ -108,12 +120,10 @@
 
   const selSede = $('sede');
 
-  /* Las sedes dependen de la entidad elegida en la pantalla previa. */
   function poblarSedes() {
     const lista = sedesVisibles();
     selSede.innerHTML = '<option disabled selected value="">Seleccione una sede</option>' +
       lista.map((s) => `<option value="${s.id}">${s.nombre}</option>`).join('');
-    // Con una sola sede no tiene sentido pedir que la escojan.
     if (lista.length === 1) {
       selSede.value = lista[0].id;
       selSede.disabled = !!(CONSENT && CONSENT.sedeFija);
@@ -148,11 +158,9 @@
   }
   refrescarFecha();
 
-  /* ---- Reglas de entrada por campo ------------------------------------ */
   const inpDoc   = $('identificacion');
   const inpLugar = $('lugarExpedicion');
 
-  // El pasaporte admite letras; el resto de documentos son solo numéricos.
   function aplicarReglaDocumento() {
     const esPasaporte = selTipo.value === 'PA';
     inpDoc.placeholder = esPasaporte ? 'Ej. AV123456' : 'Ej. 123456789';
@@ -181,13 +189,8 @@
   });
 
   const cardAtencion = $('cardAtencion');
-
-  // Para comparar sin que estorben tildes ni mayúsculas.
   const plano = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
 
-  /* Devuelve el texto de la opción con las coincidencias envueltas en
-     <mark>. Se arma con nodos, no con innerHTML: parte del texto lo
-     escribe el usuario. */
   function resaltar(texto, palabras) {
     const frag = document.createDocumentFragment();
     if (!palabras.length) { frag.appendChild(document.createTextNode(texto)); return frag; }
@@ -400,6 +403,11 @@
   const buscaProcedimiento = crearBuscador($('procedimiento'),
     () => (CONSENT && CONSENT.PROCEDIMIENTOS) || [], 'procedimientos');
 
+  // Responsables de la institución: se busca por nombre.
+  const RESPONSABLES = () => (CONSENT && CONSENT.RESPONSABLES) || [];
+  const buscaResponsable = crearBuscador($('responsable'),
+    () => RESPONSABLES().map((r) => r.nombre), 'responsables');
+
   const CLAVE_USUARIO = 'asc_usuario';
   function recordarUsuario(v) {
     try { window.sessionStorage.setItem(CLAVE_USUARIO, v); } catch (e) { /* sin memoria */ }
@@ -415,7 +423,7 @@
   const minorsList         = $('minorsList');
   const addMinorBtn        = $('addMinorBtn');
   const minorCounter       = $('minorCounter');
-  const signatureHint      = $('signatureHint');
+
 
   const getEntries = () => Array.from(minorsList.querySelectorAll('.asc-minor'));
 
@@ -433,7 +441,14 @@
           '<input class="asc-input" type="text" data-field="nombre" placeholder="Nombres y apellidos"/>' +
         '</div>' +
         '<div class="asc-field">' +
-          '<label class="asc-label">Tarjeta de identidad</label>' +
+          '<label class="asc-label">Tipo de documento</label>' +
+          '<select class="asc-select" data-field="tipoDoc">' +
+            TIPOS_DOC_MENOR.map((t) =>
+              '<option value="' + t.id + '">' + t.sigla + ' — ' + t.label + '</option>').join('') +
+          '</select>' +
+        '</div>' +
+        '<div class="asc-field asc-field--full">' +
+          '<label class="asc-label">Número de documento</label>' +
           '<input class="asc-input" type="text" data-field="documento" inputmode="numeric" maxlength="15" placeholder="Número de documento"/>' +
         '</div>' +
       '</div>';
@@ -449,7 +464,7 @@
     entries.forEach((entry, i) => {
       const n = i + 1;
       entry.querySelector('.asc-minor-title').textContent = 'MENOR ' + n;
-      entry.querySelectorAll('input[data-field]').forEach((input) => {
+      entry.querySelectorAll('[data-field]').forEach((input) => {
         const id = `menor_${input.dataset.field}_${n}`;
         input.id = id; input.name = `menores[${i}][${input.dataset.field}]`;
         const label = input.parentElement.querySelector('label');
@@ -460,7 +475,7 @@
     const atMax = entries.length >= MAX_MENORES;
     addMinorBtn.disabled = atMax;
     minorCounter.textContent = `${entries.length} de ${MAX_MENORES} menores` + (atMax ? ' — límite alcanzado' : '');
-    signatureHint.textContent = entries.length
+    firmaPaciente.hint.textContent = entries.length
       ? (PERSONA ? PERSONA.hintFirmaMenores : 'Firma del padre, madre o acudiente que autoriza (es también el titular adulto).')
       : (PERSONA ? PERSONA.hintFirma : 'Firma del titular adulto.');
   }
@@ -484,222 +499,239 @@
     entry.querySelector('input').focus();
   });
 
-  const wrapper     = $('signatureWrapper');
-  const canvas      = $('signatureCanvas');
-  const ctx         = canvas.getContext('2d');
-  const placeholder = $('signaturePlaceholder');
-  const firmaInput  = $('firmaData');
-  const sigError    = $('signatureError');
-  const saveBtn     = $('saveSignature');
-
   const FCFG = Object.assign({
     GROSOR: 2.0, USAR_PRESION: true,
     PRESION_MIN: 0.55, PRESION_MAX: 1.75, ALTURA_LAPIZ: 300
   }, CFG.FIRMA || {});
 
-  let isDrawing = false, hasStrokes = false, firmaGuardada = false;
+  function crearFirma(sufijo) {
+    const wrapper     = $('signatureWrapper' + sufijo);
+    const canvas      = $('signatureCanvas' + sufijo);
+    const ctx         = canvas.getContext('2d');
+    const placeholder = $('signaturePlaceholder' + sufijo);
+    const firmaInput  = $('firmaData' + sufijo);
+    const sigError    = $('signatureError' + sufijo);
+    const saveBtn     = $('saveSignature' + sufijo);
 
-  // Estado del trazo en curso
-  let activeId = null;      // pointerId que está dibujando; el resto se ignora
-  let prevPt   = null;      // último punto crudo
-  let prevMid  = null;      // último punto medio (extremo de la curva anterior)
-  let prevW    = 0;         // grosor actual, suavizado entre eventos
+    let isDrawing = false, hasStrokes = false, firmaGuardada = false;
+    let activeId = null;      // pointerId que está dibujando; el resto se ignora
+    let prevPt   = null;      // último punto crudo
+    let prevMid  = null;      // último punto medio (extremo de la curva anterior)
+    let prevW    = 0;         // grosor actual, suavizado entre eventos
 
-  let presionReal = false;  // el lápiz manda presión variable de verdad
-  let modoLapiz   = false;  // ya se detectó un lápiz en este pad
+    let presionReal = false;  // el lápiz manda presión variable de verdad
+    let modoLapiz   = false;  // ya se detectó un lápiz en este pad
 
-  function applyStyle() {
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#0f2b3d'; ctx.fillStyle = '#0f2b3d';
-    ctx.lineWidth = FCFG.GROSOR;
-  }
-
-  let lastW = 0, lastH = 0;
-  function resizeCanvas() {
-    const rect = wrapper.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    if (Math.round(rect.width) === lastW && Math.round(rect.height) === lastH) return;
-    lastW = Math.round(rect.width); lastH = Math.round(rect.height);
-    const snapshot = hasStrokes ? canvas.toDataURL() : null;
-    const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 2), 3);
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
-    canvas.style.width = rect.width + 'px';
-    canvas.style.height = rect.height + 'px';
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    applyStyle();
-    if (snapshot) {
-      const img = new Image();
-      img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
-      img.src = snapshot;
+    function applyStyle() {
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#0f2b3d'; ctx.fillStyle = '#0f2b3d';
+      ctx.lineWidth = FCFG.GROSOR;
     }
-  }
 
-  let resizeTimer;
-  function scheduleResize() { clearTimeout(resizeTimer); resizeTimer = setTimeout(resizeCanvas, 120); }
-  window.addEventListener('resize', scheduleResize);
-  window.addEventListener('orientationchange', scheduleResize);
-  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(scheduleResize).observe(wrapper);
-  resizeCanvas();
-
-  function getPos(evt) {
-    const rect = canvas.getBoundingClientRect();
-    return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-  }
-  function markDirty() {
-    if (!hasStrokes) { hasStrokes = true; placeholder.style.display = 'none'; }
-    if (firmaGuardada) { firmaGuardada = false; firmaInput.value = ''; saveBtn.textContent = 'Guardar Firma'; }
-    sigError.classList.add('asc-hidden');
-  }
-
-
-  function activarModoLapiz() {
-    if (modoLapiz || hasStrokes || !FCFG.ALTURA_LAPIZ) return;
-    modoLapiz = true;
-    wrapper.style.minHeight = FCFG.ALTURA_LAPIZ + 'px';
-    placeholder.textContent = 'Firme aquí con el lápiz';
-    scheduleResize();
-  }
-
-  
-  function grosorDe(evt) {
-    if (!FCFG.USAR_PRESION || evt.pointerType !== 'pen') return FCFG.GROSOR;
-    const p = evt.pressure;
-    if (p > 0 && Math.abs(p - 0.5) > 0.001) presionReal = true;
-    if (!presionReal) return FCFG.GROSOR;
-    const t = Math.max(0, Math.min(1, p));
-    return FCFG.GROSOR * (FCFG.PRESION_MIN + (FCFG.PRESION_MAX - FCFG.PRESION_MIN) * t);
-  }
-
-  function segmento(pt, w) {
-    const mid = { x: (prevPt.x + pt.x) / 2, y: (prevPt.y + pt.y) / 2 };
-    ctx.beginPath();
-    ctx.lineWidth = w;
-    ctx.moveTo(prevMid.x, prevMid.y);
-    ctx.quadraticCurveTo(prevPt.x, prevPt.y, mid.x, mid.y);
-    ctx.stroke();
-    prevMid = mid; prevPt = pt;
-  }
-
-  function anotar(evt) {
-    const p = getPos(evt);
-    const dx = p.x - prevPt.x, dy = p.y - prevPt.y;
-    if (dx * dx + dy * dy < 0.16) return;          // < 0.4 px: ruido, se descarta
-    const objetivo = grosorDe(evt);
-    prevW += (objetivo - prevW) * 0.35;            // el grosor cambia sin escalones
-    segmento(p, prevW);
-  }
-
-  function startDrawing(e) {
-    if (activeId !== null) return;   // ya hay un trazo: palma o segundo dedo
-    if (e.button !== 0) return;      // botón lateral del lápiz o clic derecho
-    e.preventDefault();
-    if (e.pointerType === 'pen') activarModoLapiz();
-
-    activeId = e.pointerId; isDrawing = true;
-    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* sin captura */ }
-
-    const p = getPos(e);
-    prevPt = p; prevMid = p; prevW = grosorDe(e);
-
-    // Punto de apoyo: un toque seco debe dejar marca, no un trazo vacío.
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, prevW / 2, 0, Math.PI * 2);
-    ctx.fill();
-    markDirty();
-  }
-
-  function draw(e) {
-    if (!isDrawing || e.pointerId !== activeId) return;
-    e.preventDefault();
-    if (e.buttons === 0) { stopDrawing(e); return; }
-
-    let lote = null;
-    try { if (e.getCoalescedEvents) lote = e.getCoalescedEvents(); } catch (err) { lote = null; }
-
-    if (lote && lote.length) { for (let i = 0; i < lote.length; i++) anotar(lote[i]); }
-    else anotar(e);
-  }
-
-  function stopDrawing(e) {
-    if (!isDrawing) return;
-    if (e && e.pointerId !== undefined && activeId !== null && e.pointerId !== activeId) return;
-    isDrawing = false;
-    if (activeId !== null) {
-      try { canvas.releasePointerCapture(activeId); } catch (err) { /* ya liberado */ }
-      activeId = null;
-    }
-    // Cierra el tramo final: si no, faltaría media curva en el remate.
-    if (prevPt && prevMid) {
-      ctx.beginPath();
-      ctx.lineWidth = prevW || FCFG.GROSOR;
-      ctx.moveTo(prevMid.x, prevMid.y);
-      ctx.lineTo(prevPt.x, prevPt.y);
-      ctx.stroke();
-    }
-    prevPt = null; prevMid = null;
-  }
-
-  canvas.addEventListener('pointerdown', startDrawing);
-  canvas.addEventListener('pointermove', draw);
-  canvas.addEventListener('pointerup', stopDrawing);
-  canvas.addEventListener('pointercancel', stopDrawing);
-  canvas.addEventListener('lostpointercapture', stopDrawing);
-  window.addEventListener('pointerup', stopDrawing);
-  canvas.addEventListener('pointerover', function (e) {
-    if (e.pointerType === 'pen') activarModoLapiz();
-  });
-
-  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-
-  function clearSignature() {
-    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.restore();
-    hasStrokes = false; firmaGuardada = false; firmaInput.value = '';
-    isDrawing = false; activeId = null; prevPt = null; prevMid = null;
-    placeholder.style.display = 'block';
-    saveBtn.textContent = 'Guardar Firma';
-    sigError.classList.add('asc-hidden');
-  }
-  $('clearSignature').addEventListener('click', clearSignature);
-
-  saveBtn.addEventListener('click', () => {
-    if (!hasStrokes) {
-      sigError.textContent = 'Debe trazar la firma antes de guardarla.';
-      sigError.classList.remove('asc-hidden');
-      return;
-    }
-    firmaInput.value = canvas.toDataURL('image/png');
-    firmaGuardada = true;
-    saveBtn.textContent = 'Firma guardada ✓';
-    sigError.classList.add('asc-hidden');
-  });
-
-  function firmaJPEG() {
-    const w = canvas.width, h = canvas.height;
-    const data = ctx.getImageData(0, 0, w, h).data;
-    let minX = w, minY = h, maxX = -1, maxY = -1;
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        if (data[(y * w + x) * 4 + 3] > 8) {
-          if (x < minX) minX = x; if (x > maxX) maxX = x;
-          if (y < minY) minY = y; if (y > maxY) maxY = y;
-        }
+    let lastW = 0, lastH = 0;
+    function resizeCanvas() {
+      const rect = wrapper.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      if (Math.round(rect.width) === lastW && Math.round(rect.height) === lastH) return;
+      lastW = Math.round(rect.width); lastH = Math.round(rect.height);
+      const snapshot = hasStrokes ? canvas.toDataURL() : null;
+      const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 2), 3);
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      canvas.style.width = rect.width + 'px';
+      canvas.style.height = rect.height + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      applyStyle();
+      if (snapshot) {
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
+        img.src = snapshot;
       }
     }
-    if (maxX < 0) return null;
-    const pad = Math.round(Math.min(w, h) * 0.03);
-    minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
-    maxX = Math.min(w - 1, maxX + pad); maxY = Math.min(h - 1, maxY + pad);
-    const cw = maxX - minX + 1, ch = maxY - minY + 1;
-    const off = document.createElement('canvas');
-    off.width = cw; off.height = ch;
-    const octx = off.getContext('2d');
-    octx.fillStyle = '#ffffff'; octx.fillRect(0, 0, cw, ch);
-    octx.drawImage(canvas, minX, minY, cw, ch, 0, 0, cw, ch);
-    return { b64: off.toDataURL('image/jpeg', 0.92).split(',')[1], w: cw, h: ch };
+
+    let resizeTimer;
+    function scheduleResize() { clearTimeout(resizeTimer); resizeTimer = setTimeout(resizeCanvas, 120); }
+    window.addEventListener('resize', scheduleResize);
+    window.addEventListener('orientationchange', scheduleResize);
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(scheduleResize).observe(wrapper);
+    resizeCanvas();
+
+    function getPos(evt) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+    }
+    function markDirty() {
+      if (!hasStrokes) { hasStrokes = true; placeholder.style.display = 'none'; }
+      if (firmaGuardada) { firmaGuardada = false; firmaInput.value = ''; saveBtn.textContent = 'Guardar Firma'; }
+      sigError.classList.add('asc-hidden');
+    }
+
+
+    function activarModoLapiz() {
+      if (modoLapiz || hasStrokes || !FCFG.ALTURA_LAPIZ) return;
+      modoLapiz = true;
+      wrapper.style.minHeight = FCFG.ALTURA_LAPIZ + 'px';
+      placeholder.textContent = 'Firme aquí con el lápiz';
+      scheduleResize();
+    }
+
+  
+    function grosorDe(evt) {
+      if (!FCFG.USAR_PRESION || evt.pointerType !== 'pen') return FCFG.GROSOR;
+      const p = evt.pressure;
+      if (p > 0 && Math.abs(p - 0.5) > 0.001) presionReal = true;
+      if (!presionReal) return FCFG.GROSOR;
+      const t = Math.max(0, Math.min(1, p));
+      return FCFG.GROSOR * (FCFG.PRESION_MIN + (FCFG.PRESION_MAX - FCFG.PRESION_MIN) * t);
+    }
+
+    function segmento(pt, w) {
+      const mid = { x: (prevPt.x + pt.x) / 2, y: (prevPt.y + pt.y) / 2 };
+      ctx.beginPath();
+      ctx.lineWidth = w;
+      ctx.moveTo(prevMid.x, prevMid.y);
+      ctx.quadraticCurveTo(prevPt.x, prevPt.y, mid.x, mid.y);
+      ctx.stroke();
+      prevMid = mid; prevPt = pt;
+    }
+
+    function anotar(evt) {
+      const p = getPos(evt);
+      const dx = p.x - prevPt.x, dy = p.y - prevPt.y;
+      if (dx * dx + dy * dy < 0.16) return;          // < 0.4 px: ruido, se descarta
+      const objetivo = grosorDe(evt);
+      prevW += (objetivo - prevW) * 0.35;            // el grosor cambia sin escalones
+      segmento(p, prevW);
+    }
+
+    function startDrawing(e) {
+      if (activeId !== null) return;   // ya hay un trazo: palma o segundo dedo
+      if (e.button !== 0) return;      // botón lateral del lápiz o clic derecho
+      e.preventDefault();
+      if (e.pointerType === 'pen') activarModoLapiz();
+
+      activeId = e.pointerId; isDrawing = true;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* sin captura */ }
+
+      const p = getPos(e);
+      prevPt = p; prevMid = p; prevW = grosorDe(e);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, prevW / 2, 0, Math.PI * 2);
+      ctx.fill();
+      markDirty();
+    }
+
+    function draw(e) {
+      if (!isDrawing || e.pointerId !== activeId) return;
+      e.preventDefault();
+      if (e.buttons === 0) { stopDrawing(e); return; }
+
+      let lote = null;
+      try { if (e.getCoalescedEvents) lote = e.getCoalescedEvents(); } catch (err) { lote = null; }
+
+      if (lote && lote.length) { for (let i = 0; i < lote.length; i++) anotar(lote[i]); }
+      else anotar(e);
+    }
+
+    function stopDrawing(e) {
+      if (!isDrawing) return;
+      if (e && e.pointerId !== undefined && activeId !== null && e.pointerId !== activeId) return;
+      isDrawing = false;
+      if (activeId !== null) {
+        try { canvas.releasePointerCapture(activeId); } catch (err) { /* ya liberado */ }
+        activeId = null;
+      }
+      // Cierra el tramo final: si no, faltaría media curva en el remate.
+      if (prevPt && prevMid) {
+        ctx.beginPath();
+        ctx.lineWidth = prevW || FCFG.GROSOR;
+        ctx.moveTo(prevMid.x, prevMid.y);
+        ctx.lineTo(prevPt.x, prevPt.y);
+        ctx.stroke();
+      }
+      prevPt = null; prevMid = null;
+    }
+
+    canvas.addEventListener('pointerdown', startDrawing);
+    canvas.addEventListener('pointermove', draw);
+    canvas.addEventListener('pointerup', stopDrawing);
+    canvas.addEventListener('pointercancel', stopDrawing);
+    canvas.addEventListener('lostpointercapture', stopDrawing);
+    window.addEventListener('pointerup', stopDrawing);
+    canvas.addEventListener('pointerover', function (e) {
+      if (e.pointerType === 'pen') activarModoLapiz();
+    });
+
+    canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+    function clearSignature() {
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.restore();
+      hasStrokes = false; firmaGuardada = false; firmaInput.value = '';
+      isDrawing = false; activeId = null; prevPt = null; prevMid = null;
+      placeholder.style.display = 'block';
+      saveBtn.textContent = 'Guardar Firma';
+      sigError.classList.add('asc-hidden');
+    }
+    $('clearSignature' + sufijo).addEventListener('click', clearSignature);
+
+    saveBtn.addEventListener('click', () => {
+      if (!hasStrokes) {
+        sigError.textContent = 'Debe trazar la firma antes de guardarla.';
+        sigError.classList.remove('asc-hidden');
+        return;
+      }
+      firmaInput.value = canvas.toDataURL('image/png');
+      firmaGuardada = true;
+      saveBtn.textContent = 'Firma guardada ✓';
+      sigError.classList.add('asc-hidden');
+    });
+
+    function firmaJPEG() {
+      const w = canvas.width, h = canvas.height;
+      const data = ctx.getImageData(0, 0, w, h).data;
+      let minX = w, minY = h, maxX = -1, maxY = -1;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (data[(y * w + x) * 4 + 3] > 8) {
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+          }
+        }
+      }
+      if (maxX < 0) return null;
+      const pad = Math.round(Math.min(w, h) * 0.03);
+      minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+      maxX = Math.min(w - 1, maxX + pad); maxY = Math.min(h - 1, maxY + pad);
+      const cw = maxX - minX + 1, ch = maxY - minY + 1;
+      const off = document.createElement('canvas');
+      off.width = cw; off.height = ch;
+      const octx = off.getContext('2d');
+      octx.fillStyle = '#ffffff'; octx.fillRect(0, 0, cw, ch);
+      octx.drawImage(canvas, minX, minY, cw, ch, 0, 0, cw, ch);
+      return { b64: off.toDataURL('image/jpeg', 0.92).split(',')[1], w: cw, h: ch };
+    }
+
+    return {
+      wrapper: wrapper,
+      boton: saveBtn,
+      error: sigError,
+      hint: $('signatureHint' + sufijo),
+      tieneTrazos: () => hasStrokes,
+      guardada: () => firmaGuardada,
+      limpiar: clearSignature,
+      jpeg: firmaJPEG,
+      redimensionar: scheduleResize
+    };
   }
 
+  const firmaPaciente    = crearFirma('');
+  const firmaResponsable = crearFirma('2');
+  const FIRMAS = [firmaPaciente, firmaResponsable];
+
+  // Al mostrarse el formulario los lienzos aún no tenían medidas.
+  const scheduleResize   = () => FIRMAS.forEach((f) => f.redimensionar());
+  const limpiarFirmas    = () => FIRMAS.forEach((f) => f.limpiar());
 
   const M = {
     X0: 20, X1: 68, X2: 145.5, X3: 190,
@@ -720,7 +752,6 @@
     doc.line(X2, HY[1], X2, HY[3]);
     doc.line(X2, HY[2], X3, HY[2]);
 
-    // Logo de la entidad (mantiene proporción dentro de la celda)
     const cellW = X1 - X0 - 4, cellH = HY[5] - HY[0] - 4;
     let lw = cellW, lh = lw * logo.h / logo.w;
     if (lh > cellH) { lh = cellH; lw = lh * logo.w / logo.h; }
@@ -826,7 +857,7 @@
       d.menores.forEach((m, i) => {
         if (i > 0) runs.push({ s: i === d.menores.length - 1 ? ' y ' : ', ' });
         runs.push({ s: m.nombre, bold: true, underline: true });
-        runs.push({ s: ', identificado(a) con Tarjeta de Identidad número ' });
+        runs.push({ s: ', identificado(a) con ' + m.tipoDocLabel + ' número ' });
         runs.push({ s: m.documento, bold: true, underline: true });
       });
       runs.push({ s: (plural ? ', para que aparezcan ante la cámara' : ', para que aparezca ante la cámara') +
@@ -834,7 +865,6 @@
       y = doc.paragraph(runs, M.X0, y, W, { size: 11 });
     }
 
-    /* ---------- Página 2: Adulto, firmas y constancia ---------- */
     nuevaPagina();
 
     doc.text(d.pdf.tituloBloque, M.X0, y, { size: 11, bold: true });
@@ -881,7 +911,7 @@
       d.menores.forEach((m) => {
         bloqueFirma({
           izqValor: m.nombre, izqCaption: 'Nombre del menor de edad',
-          derValor: m.documento, derCaption: 'Tarjeta de identidad'
+          derValor: m.documento, derCaption: m.tipoDocLabel
         });
       });
       y += 3;
@@ -914,24 +944,10 @@
     return doc.build();
   }
 
-  /* =====================================================================
-     7-bis. ASI-FOR-14 — TRATAMIENTO DE DATOS PERSONALES
-     Mismo marco que el 018 pero sin la fila de la sede, y con la fecha de
-     elaboración fija que trae el formato aprobado.
-
-     El texto de los nueve numerales se reproduce LITERALMENTE del formato
-     de calidad, incluidas sus erratas ("www.esap.edu.co" en el punto 6 y
-     "IPS Acción Para Todos SAS" en el punto 8). No se corrigen aquí: si
-     calidad las corrige en el documento, se actualizan en este bloque.
-     Por lo mismo el texto va escrito para Acción Salud y no se parametriza
-     con razonSocial; el config solo ofrece este formato a esa entidad.
-     ===================================================================== */
   const M14 = {
     HY: [12.6, 15.9, 23.9, 36.0, 40.1],   // sin la fila de la sede
     Y_PAGINA: 38.95,
     BODY_TOP: 49,
-    /* El pie arranca en 263.2: se deja llegar el cuerpo hasta 258 para que
-       las firmas quepan en la misma hoja, como en el formato original. */
     BODY_BOTTOM: 258
   };
 
@@ -975,11 +991,11 @@
 
   const NUMERALES_14 = [
     'La IPS Acción Salud Para Todos SAS, actuará como responsable del Tratamiento de datos personales de los cuales soy titular y que, conjunta o separadamente podrá recolectar, usar y tratar mis datos personales conforme la Política de Tratamiento de Datos Personales la IPS Acción Salud Para Todos SAS, disponible en SGC en página web de la entidad.',
-    null,   // el punto 2 lleva la finalidad y se arma aparte
+    null,
     'Es de carácter facultativo o voluntario responder preguntas que versen sobre Datos Sensibles o sobre menores de edad.',
     'Mis derechos como titular de los datos son los previstos en la Constitución y la ley, especialmente el derecho a conocer, actualizar, rectificar y suprimir mi información personal, así como el derecho a revocar el consentimiento otorgado para el tratamiento de datos personales.',
     'Los derechos pueden ser ejercidos a través de los canales dispuestos por la IPS Acción Salud Para Todos SAS y observando la Política de Tratamiento de Datos Personales la IPS.',
-    null,   // el punto 6 lleva el sitio web configurable
+    null,  
     'La IPS Acción Salud Para Todos SAS, garantizará la confidencialidad, libertad, seguridad, veracidad, transparencia, acceso y circulación restringida de mis datos y se reservará el derecho de modificar su Política de Tratamiento de Datos Personales en cualquier momento. Cualquier cambio será informado y publicado oportunamente en la página web.',
     'Teniendo en cuenta lo anterior, autorizo de manera voluntaria, previa, explícita, informada e inequívoca a la IPS Acción Para Todos SAS, para tratar mis datos personales y tomar mi huella y fotografía de acuerdo con su Política de Tratamiento de Datos Personales para los fines relacionados con su objeto y en especial para fines legales, contractuales, misionales descritos en la Política de Tratamiento de Datos Personales de la IPS.',
     'La información obtenida para el Tratamiento de mis datos personales la he suministrado de forma voluntaria y es verídica.'
@@ -991,7 +1007,7 @@
     if (d.firma) doc.addImage('ImFirma', d.firma.b64, d.firma.w, d.firma.h);
 
     const W = M.X3 - M.X0;
-    const SZ = 9.6;                       // cabe el formato completo en una hoja
+    const SZ = 9.6;                      
     let y;
 
     function nuevaPagina() {
@@ -1041,12 +1057,7 @@
 
     /* ---------- Las dos firmas del formato ---------- */
     const LX0 = 20, LX1 = 100, RX0 = 110, RX1 = 190;
-    // El rol elegido decide en cuál bloque va la firma; el otro queda en
-    // blanco para firmar a mano o poner la huella.
     const destino = (d.consent.bloqueFirma || {})[d.personaId] || 'paciente';
-
-    /* La firma se estampa POR ENCIMA de la línea, así que hay que bajar
-       antes de dibujarla o se monta sobre el párrafo anterior. */
     const ALTO_FIRMA = 11;
     const SOBRE_LINEA = ALTO_FIRMA + 5;
     espacio(SOBRE_LINEA + 16);
@@ -1087,16 +1098,9 @@
     return doc.build();
   }
 
-  /* =====================================================================
-     7-ter. AS-SM-PROC-007 — CREAS CONECTA, USO DE DATOS PERSONALES
-     Formato distinto a los ASI-FOR: el marco es turquesa, la columna
-     derecha del encabezado lleva cuatro filas con etiqueta y valor en la
-     misma celda, y NO tiene tabla de pie.
-     Texto reproducido literalmente del documento aprobado.
-     ===================================================================== */
   const M7 = {
     X0: 20, X1: 62, X2: 148, X3: 190,
-    HY: [14, 22.5, 31, 39.5, 48],   // 4 filas en la columna derecha
+    HY: [14, 22.5, 31, 39.5, 48],   
     BODY_TOP: 58,
     BODY_BOTTOM: 268
   };
@@ -1138,7 +1142,6 @@
     doc.text('CONSENTIMIENTO INFORMADO', cx, 29.4, { size: 9.5, bold: true, align: 'center' });
     doc.text('CREAS CONECTA – USO DE DATOS PERSONALES', cx, 33.4, { size: 9.5, bold: true, align: 'center' });
 
-    // Columna derecha: etiqueta y valor comparten celda.
     const cx3 = (X2 + X3) / 2;
     const filas = [
       'VERSIÓN: ' + (d.consent.version || '001'),
@@ -1148,7 +1151,6 @@
     filas.forEach((t, i) => {
       doc.text(t, cx3, (HY[i] + HY[i + 1]) / 2 + 1.1, { size: 7.6, bold: true, align: 'center' });
     });
-    // La última fila lleva el "Página X de N", que se estampa al cerrar.
     return (HY[U - 1] + HY[U]) / 2 + 1.1;
   }
 
@@ -1336,6 +1338,9 @@
     doc.addImage('ImLogo', d.logo.b64, d.logo.w, d.logo.h);
     if (d.consent.banda) doc.addImage('ImBanda', d.consent.banda.b64, d.consent.banda.w, d.consent.banda.h);
     if (d.firma) doc.addImage('ImFirma', d.firma.b64, d.firma.w, d.firma.h);
+    if (d.firmaResponsable) {
+      doc.addImage('ImFirmaResp', d.firmaResponsable.b64, d.firmaResponsable.w, d.firmaResponsable.h);
+    }
 
     /* Times New Roman 10 con interlineado sencillo, medido sobre el Word
        original: a ese cuerpo las líneas cortan donde cortan allí. */
@@ -1410,26 +1415,37 @@
     y += SOBRE + 6;
     const yFirma = y;
 
-    function bloqueSF(x0, x1, rotulo, mio) {
+    /* Cada bloque recibe su propio firmante: `quien` trae nombre, documento
+       e imagen de la firma, o null si esa línea se deja para llenar a mano. */
+    function bloqueSF(x0, x1, rotulo, quien) {
       let yy = yFirma;
-      if (mio && d.firma) {
-        let fh = ALTO_FIRMA, fw = fh * d.firma.w / d.firma.h;
-        if (fw > x1 - x0 - 6) { fw = x1 - x0 - 6; fh = fw * d.firma.h / d.firma.w; }
-        doc.image('ImFirma', x0 + 3, yy - fh - 3.5, fw, fh);
+      const firma = quien && quien.firma;
+      if (firma) {
+        let fh = ALTO_FIRMA, fw = fh * firma.w / firma.h;
+        if (fw > x1 - x0 - 6) { fw = x1 - x0 - 6; fh = fw * firma.h / firma.w; }
+        doc.image(quien.img, x0 + 3, yy - fh - 3.5, fw, fh);
       }
-      if (mio) doc.text(d.nombreCompleto, x0 + 3, yy - 1.4, { size: 8.5, bold: true });
+      if (quien) doc.text(quien.nombre, x0 + 3, yy - 1.4, { size: 8.5, bold: true });
       doc.line(x0, yy, x1, yy, { width: 0.5 });
       yy += 4.4;
       doc.text(rotulo, x0, yy, { size: 8.5, bold: true });
       yy += 4.4;
       const fin = doc.text('IDENTIFICACIÓN: ', x0, yy, { size: 8.5, bold: true });
-      if (mio) doc.text(d.numeroDoc, fin + 1.5, yy, { size: 8.5 });
+      if (quien && quien.documento) doc.text(quien.documento, fin + 1.5, yy, { size: 8.5 });
       doc.line(fin + 1, yy + 1.2, x1, yy + 1.2, { width: 0.4 });
       return yy + 6;
     }
 
-    const yIzq = bloqueSF(LX0, LX1, 'FIRMA DEL PACIENTE', destino === 'paciente');
-    const yDer = bloqueSF(RX0, RX1, 'FIRMA DEL RESPONSABLE DE LA INSTITUCION', destino === 'institucion');
+    const elPaciente = (destino === 'paciente')
+      ? { nombre: d.nombreCompleto, documento: d.numeroDoc, firma: d.firma, img: 'ImFirma' }
+      : null;
+    const elResponsable = d.responsable
+      ? { nombre: d.responsable.nombre, documento: d.responsable.documento,
+          firma: d.firmaResponsable, img: 'ImFirmaResp' }
+      : null;
+
+    const yIzq = bloqueSF(LX0, LX1, 'FIRMA DEL PACIENTE', elPaciente);
+    const yDer = bloqueSF(RX0, RX1, 'FIRMA DEL RESPONSABLE DE LA INSTITUCION', elResponsable);
     y = Math.max(yIzq, yDer);
 
     const N = doc.pageCount();
@@ -1646,22 +1662,47 @@
       entries.forEach((entry) => {
         const nom = entry.querySelector('[data-field="nombre"]');
         const td  = entry.querySelector('[data-field="documento"]');
+        const sel = entry.querySelector('[data-field="tipoDoc"]');
         if (!nom.value.trim()) fail(nom, 'Ingrese el nombre del menor.');
         const t = td.value.trim();
-        if (!t) fail(td, 'Ingrese la tarjeta de identidad.');
+        if (!t) fail(td, 'Ingrese el número de documento.');
         else if (!/^\d{5,15}$/.test(t)) fail(td, 'Debe contener solo números.');
-        menores.push({ nombre: titleCase(nom.value), documento: t });
+        const tipo = TIPOS_DOC_MENOR.find((x) => x.id === sel.value) || TIPOS_DOC_MENOR[0];
+        menores.push({
+          nombre: titleCase(nom.value), documento: t,
+          tipoDocId: tipo.id, tipoDoc: tipo.sigla, tipoDocLabel: tipo.label
+        });
       });
     }
 
-    if (!hasStrokes) {
-      sigError.textContent = 'La firma es obligatoria.';
-      sigError.classList.remove('asc-hidden');
-      if (!primerError) primerError = wrapper;
-    } else if (!firmaGuardada) {
-      sigError.textContent = 'Pulse "Guardar Firma" para confirmar el trazo.';
-      sigError.classList.remove('asc-hidden');
-      if (!primerError) primerError = saveBtn;
+    /* Cada panel de firma se revisa igual: trazo hecho y confirmado. */
+    function revisarFirma(f, etiqueta) {
+      if (!f.tieneTrazos()) {
+        f.error.textContent = etiqueta + ' es obligatoria.';
+        f.error.classList.remove('asc-hidden');
+        if (!primerError) primerError = f.wrapper;
+        return false;
+      }
+      if (!f.guardada()) {
+        f.error.textContent = 'Pulse "Guardar firma" para confirmar el trazo.';
+        f.error.classList.remove('asc-hidden');
+        if (!primerError) primerError = f.boton;
+        return false;
+      }
+      return true;
+    }
+    revisarFirma(firmaPaciente, 'La firma');
+
+    let responsable = null;
+    if (pide('responsable')) {
+      const nombreResp = buscaResponsable.get();
+      if (!nombreResp) {
+        fail($('responsable'), 'Elija el responsable de la institución.');
+      } else {
+        responsable = (RESPONSABLES().find((r) => r.nombre === nombreResp)) ||
+                      { nombre: nombreResp, documento: '' };
+      }
+      revisarFirma(firmaResponsable, 'La firma del responsable');
     }
 
     if (primerError) {
@@ -1724,7 +1765,9 @@
                   String(f.getMonth() + 1).padStart(2, '0') + '/' + f.getFullYear(),
       fechaISO: f.toISOString(),
       menores: menores,
-      firma: firmaJPEG()
+      firma: firmaPaciente.jpeg(),
+      responsable: responsable,
+      firmaResponsable: pide('responsable') ? firmaResponsable.jpeg() : null
     };
   }
 
@@ -1752,7 +1795,8 @@
     buscaConvenio.limpiar();
     buscaProcedimiento.limpiar();
     limpiarSoportes();
-    clearSignature();
+    limpiarFirmas();
+    buscaResponsable.limpiar();
     refrescarFecha(); 
     form.querySelectorAll('.asc-error-msg:not([id])').forEach((p) => p.remove());
     form.querySelectorAll('.asc-error-msg[id]').forEach((p) => p.classList.add('asc-hidden'));
@@ -1811,7 +1855,8 @@
         departamento: d.departamento,
         fecha: d.fechaISO,
         menores: d.menores,
-        soporte: soportes.map((s) => s.nombre)
+        soporte: soportes.map((s) => s.nombre),
+        responsable: d.responsable ? (d.responsable.nombre + ' — C.C. ' + d.responsable.documento) : ''
       }
     };
 
@@ -1858,10 +1903,10 @@
       enviarPorCorreo(ultimoEnvio.bytes, ultimoEnvio.nombreArchivo, ultimoEnvio.datos)
         .then(() => {
           const quien = ultimoEnvio.datos.nombreCompleto;
+          mostrarGenerado(ultimoEnvio.bytes, ultimoEnvio.nombreArchivo);
           ultimoEnvio = null;
-          limpiarFormulario();
           setAlert('ok', 'Envío completado: el consentimiento de ' + quien +
-            ' llegó al buzón. Formulario listo para el siguiente registro.');
+            ' llegó al buzón. Pulse "Generar nuevo consentimiento" para el siguiente.');
         })
         .catch((err) => {
           setAlert('error', 'Sigue fallando el envío: ' + err.message +
@@ -2214,6 +2259,47 @@
 
   pintarModo();
 
+  /* =====================================================================
+     ESTADO "DOCUMENTO GENERADO"
+     Al terminar, el formulario NO se limpia: queda tal cual para poder
+     descargar el mismo documento las veces que haga falta. Solo se vacía
+     al pulsar "Generar nuevo consentimiento".
+     Mientras dura ese estado se esconde el botón de generar, para que un
+     segundo clic no vuelva a mandar el mismo correo.
+     ===================================================================== */
+  let ultimoGenerado = null;   // { bytes, nombreArchivo }
+  const btnOtraVez = $('btnDescargarOtraVez');
+  const btnNuevo   = $('btnNuevoConsentimiento');
+
+  function mostrarGenerado(bytes, nombreArchivo) {
+    ultimoGenerado = { bytes: bytes, nombreArchivo: nombreArchivo };
+    submitBtn.classList.add('asc-hidden');
+    modoWrap.classList.add('asc-hidden');
+    btnOtraVez.classList.remove('asc-hidden');
+    btnNuevo.classList.remove('asc-hidden');
+  }
+
+  function volverAEditar() {
+    ultimoGenerado = null;
+    submitBtn.classList.remove('asc-hidden');
+    modoWrap.classList.remove('asc-hidden');
+    btnOtraVez.classList.add('asc-hidden');
+    btnNuevo.classList.add('asc-hidden');
+  }
+
+  btnOtraVez.addEventListener('click', () => {
+    if (!ultimoGenerado) return;
+    descargar(ultimoGenerado.bytes, ultimoGenerado.nombreArchivo);
+  });
+
+  btnNuevo.addEventListener('click', () => {
+    limpiarFormulario();
+    volverAEditar();
+    alertBox.classList.add('asc-hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    $('nombres').focus({ preventScroll: true });
+  });
+
   function continuarEnvio(bytes, nombreArchivo, d, resumen) {
     const modo = MODOS[MODO];
 
@@ -2223,8 +2309,9 @@
     if (!modo.envia || !puedeEnviar()) {
       botonOcupado(false, etiquetaEnvio());
       if (modo.descarga) {
-        limpiarFormulario();
-        setAlert('ok', resumen + ' Descargado en este equipo. Formulario listo para el siguiente registro.');
+        mostrarGenerado(bytes, nombreArchivo);
+        setAlert('ok', resumen + ' Descargado en este equipo. Puede descargarlo otra vez; ' +
+          'pulse "Generar nuevo consentimiento" cuando vaya a registrar al siguiente.');
       } else {
         ultimoEnvio = { bytes: bytes, nombreArchivo: nombreArchivo, datos: d };
         setAlert('error', resumen + ' El envío todavía no está configurado ' +
@@ -2243,10 +2330,11 @@
     enviarPorCorreo(bytes, nombreArchivo, d)
       .then(() => {
         ultimoEnvio = null;
-        limpiarFormulario();
+        mostrarGenerado(bytes, nombreArchivo);
         setAlert('ok', resumen + ' Enviado al buzón' +
           (modo.descarga ? ' y descargado en este equipo' : '') +
-          '. Formulario listo para el siguiente registro.');
+          '. Puede descargarlo otra vez; pulse "Generar nuevo consentimiento" ' +
+          'cuando vaya a registrar al siguiente.');
       })
       .catch((err) => {
         console.error('[Consentimiento] Falló el envío:', err);
@@ -2270,7 +2358,16 @@
   const stepConsent = $('stepConsent');
   const appLogo     = $('appLogo');
   const cardMenores = $('cardMenores');
-  const PASOS = [stepOrg, stepPersona, stepConsent];
+  const stepCategoria = $('stepCategoria');
+  const PASOS = [stepOrg, stepPersona, stepCategoria, stepConsent];
+
+  /* La secuencia real depende de la entidad: si solo ofrece una categoría
+     ese paso se salta, igual que ya pasaba cuando había un solo formato. */
+  function pasosVisibles() {
+    const conCategoria = categoriasDeOrg().length > 1;
+    return conCategoria ? [stepOrg, stepPersona, stepCategoria, stepConsent]
+                        : [stepOrg, stepPersona, stepConsent];
+  }
 
   function tarjeta(art, nombre, descripcion) {
     const b = document.createElement('button');
@@ -2302,9 +2399,23 @@
 
   const consentChoices = $('consentChoices');
 
+  const categoriaChoices = $('categoriaChoices');
+
+  function poblarCategorias() {
+    categoriaChoices.innerHTML = '';
+    const lista = categoriasDeOrg();
+    categoriaChoices.className = 'asc-choices asc-choices--' + Math.min(lista.length, 4);
+    lista.forEach((cat) => {
+      const b = tarjeta('<svg viewBox="0 0 96 96"><use href="#' + cat.icono + '"/></svg>',
+                        cat.label, cat.descripcion);
+      b.addEventListener('click', () => elegirCategoria(cat));
+      categoriaChoices.appendChild(b);
+    });
+  }
+
   function poblarConsentimientos() {
     consentChoices.innerHTML = '';
-    const lista = consentsDeOrg();
+    const lista = consentsDeCategoria();
     consentChoices.className = 'asc-choices asc-choices--' + Math.min(lista.length, 4);
     lista.forEach((c) => {
       const b = tarjeta('<svg viewBox="0 0 96 96"><use href="#' + c.icono + '"/></svg>',
@@ -2321,7 +2432,7 @@
     $('chosenOrgLogo').src = o.logoApp;
     $('chosenOrg').textContent = o.nombre;
     poblarSedes();
-    poblarConsentimientos();
+    poblarCategorias();
     numerarPasos();
     mostrarPaso(stepPersona);
   }
@@ -2333,8 +2444,23 @@
     $('chosenPersonaIcon').setAttribute('href', '#ic-' + t.id);
     refreshMinors();
 
-    const disponibles = consentsDeOrg();
-    if (disponibles.length === 1) { elegirConsent(disponibles[0]); return; }
+    // Con una sola categoría no hay nada que elegir: se salta ese paso.
+    const cats = categoriasDeOrg();
+    if (cats.length <= 1) { elegirCategoria(cats[0] || null); return; }
+    mostrarPaso(stepCategoria);
+  }
+
+  function elegirCategoria(cat) {
+    CATEGORIA = cat;
+    if (cat) {
+      $('tituloPasoConsent').textContent = cat.titulo || '¿Qué documento va a firmar?';
+      $('leadPasoConsent').textContent   = cat.lead || 'Cada formato pide datos distintos.';
+    }
+    // El botón de volver apunta al paso anterior real.
+    const hayCategoria = categoriasDeOrg().length > 1;
+    $('btnVolverCategoriaLabel').textContent =
+      hayCategoria ? 'Cambiar tipo de documento' : 'Cambiar quién firma';
+    poblarConsentimientos();
     mostrarPaso(stepConsent);
   }
 
@@ -2400,6 +2526,14 @@
       buscaProcedimiento.limpiar();
     }
 
+    // Responsable de la institución: solo lo pide el formato de San Felipe.
+    const verResponsable = pide('responsable');
+    $('cardResponsable').classList.toggle('asc-hidden', !verResponsable);
+    if (!verResponsable) {
+      buscaResponsable.limpiar();
+      firmaResponsable.limpiar();
+    }
+
     const verSoporte = SOP.ACTIVO && pide('soporte');
     cardSoporte.classList.toggle('asc-hidden', !verSoporte);
     if (!verSoporte) limpiarSoportes();
@@ -2414,10 +2548,10 @@
   }
 
   function numerarPasos() {
-    const total = consentsDeOrg().length > 1 ? 3 : 2;
-    PASOS.forEach((s) => {
-      const eyebrow = s.querySelector('.asc-setup-eyebrow');
-      if (eyebrow) eyebrow.textContent = 'Paso ' + eyebrow.dataset.paso + ' de ' + total;
+    const visibles = pasosVisibles();
+    visibles.forEach((paso, i) => {
+      const eyebrow = paso.querySelector('.asc-setup-eyebrow');
+      if (eyebrow) eyebrow.textContent = 'Paso ' + (i + 1) + ' de ' + visibles.length;
     });
   }
 
@@ -2427,6 +2561,7 @@
   }
 
   function volverASeleccion() {
+    CATEGORIA = null;
     form.classList.add('asc-hidden');
     setup.classList.remove('asc-hidden');
     mostrarPaso(stepOrg);
@@ -2434,6 +2569,9 @@
 
   $('btnVolverOrg').addEventListener('click', () => mostrarPaso(stepOrg));
   $('btnVolverPersona').addEventListener('click', () => mostrarPaso(stepPersona));
+  $('btnVolverCategoria').addEventListener('click', () => {
+    mostrarPaso(categoriasDeOrg().length > 1 ? stepCategoria : stepPersona);
+  });
   $('btnCambiarSeleccion').addEventListener('click', () => {
     if (ultimoEnvio) {
       setAlert('error', 'Hay un consentimiento generado que todavía no salió. ' +
@@ -2442,10 +2580,12 @@
       return;
     }
     const hayDatos = $('nombres').value.trim() || $('apellidos').value.trim() ||
-                     $('identificacion').value.trim() || hasStrokes || soportes.length;
+                     $('identificacion').value.trim() ||
+                     firmaPaciente.tieneTrazos() || soportes.length;
     if (hayDatos && !window.confirm('Se perderán los datos, la firma y los archivos adjuntos de este registro. ¿Continuar?')) return;
     alertBox.classList.add('asc-hidden');
     limpiarSeleccion();
+    volverAEditar();
     volverASeleccion();
   });
 
@@ -2462,8 +2602,9 @@
     minorsList.innerHTML = '';
     buscaConvenio.limpiar();
     buscaProcedimiento.limpiar();
+    buscaResponsable.limpiar();
     limpiarSoportes();
-    clearSignature();
+    limpiarFirmas();
     form.querySelectorAll('.asc-error-msg:not([id])').forEach((p) => p.remove());
     form.querySelectorAll('.asc-error-msg[id]').forEach((p) => p.classList.add('asc-hidden'));
     form.querySelectorAll('.asc-invalid').forEach((el) => el.classList.remove('asc-invalid'));
