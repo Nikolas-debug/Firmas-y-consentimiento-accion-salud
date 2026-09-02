@@ -2,12 +2,25 @@
 (function () {
   'use strict';
 
+  /* ---------------------------------------------------------------------
+     ARRANQUE
+     Si uno de los archivos del módulo no llega completo (subida a medias,
+     caché que mezcla versiones, un 404), el resto no puede funcionar. Antes
+     eso dejaba la pantalla del paso 1 en blanco, sin tarjetas y sin ninguna
+     pista. El aviso lo pinta ascFalloCarga(), que vive en el HTML: así
+     también aparece cuando el que no llegó completo fue este mismo archivo.
+     --------------------------------------------------------------------- */
+  const avisarFalla = (detalle) => {
+    if (typeof window.ascFalloCarga === 'function') window.ascFalloCarga(detalle);
+    else console.error('[Consentimiento] ' + detalle);
+  };
+
   if (!window.CONSENT_CONFIG) {
-    console.error('[Consentimiento] Falta consentimiento-config.js');
+    avisarFalla('no se cargó consentimiento-config.js');
     return;
   }
   if (typeof PDFDoc === 'undefined') {
-    console.error('[Consentimiento] Falta pdf-writer.js');
+    avisarFalla('no se cargó pdf-writer.js');
     return;
   }
   if (!document.getElementById('consentForm')) return;
@@ -37,18 +50,46 @@
   const CATEGORIAS = CFG.CATEGORIAS || [];
   let CATEGORIA = null;
 
-  /* Solo se ofrecen las categorías que la entidad tenga realmente entre
-     sus formatos, en el orden del catálogo. */
+  /* El rol manda sobre los formatos: TIPOS_PERSONA[].formatos dice cuáles
+     puede firmar. Lo que no esté listado se permite, así que agregar un
+     formato nuevo no obliga a tocar todos los roles. */
+  const rolPermite = (c) => {
+    const permisos = PERSONA && PERSONA.formatos;
+    if (!permisos) return true;
+    return permisos[c.id] !== false;
+  };
+
+  // Los formatos que quedan tras filtrar por entidad y por quién firma.
+  const consentsDisponibles = () => consentsDeOrg().filter(rolPermite);
+
+  /* Solo se ofrecen las categorías que queden con al menos un formato, en el
+     orden del catálogo. Si el rol se queda sin ninguno de una categoría, esa
+     categoría desaparece del paso 2. */
   const categoriasDeOrg = () => {
-    const usadas = consentsDeOrg().map((c) => c.categoria);
+    const usadas = consentsDisponibles().map((c) => c.categoria);
     return CATEGORIAS.filter((cat) => usadas.indexOf(cat.id) !== -1);
   };
 
   const consentsDeCategoria = () => {
-    if (!CATEGORIA) return consentsDeOrg();
-    return consentsDeOrg().filter((c) => c.categoria === CATEGORIA.id);
+    if (!CATEGORIA) return consentsDisponibles();
+    return consentsDisponibles().filter((c) => c.categoria === CATEGORIA.id);
   };
-  const pide = (campo) => !!(CONSENT && CONSENT.campos && CONSENT.campos[campo]);
+
+  /* Lo que el rol cambia para el formato elegido: campos extra y rótulos
+     propios del PDF. */
+  const ajusteRol = () => (PERSONA && PERSONA.porFormato && CONSENT &&
+                           PERSONA.porFormato[CONSENT.id]) || {};
+
+  /* Los campos los define el formato, pero el rol puede encender o apagar
+     los suyos: un acompañante en el certificado necesita además los datos
+     del paciente. */
+  const campos = () => Object.assign({}, (CONSENT && CONSENT.campos) || {},
+                                     ajusteRol().campos || {});
+  const pide = (campo) => !!campos()[campo];
+
+  // Rótulos del PDF: los del rol, con lo que cambie para este formato.
+  const rotulosPdf = () => Object.assign({}, (PERSONA && PERSONA.pdf) || {},
+                                         ajusteRol().pdf || {});
 
   const logoDelPdf = () => (CONSENT && CONSENT.logoPdf) || (ORG && ORG.logoPdf);
   const sedesVisibles = () => {
@@ -114,9 +155,16 @@
     return tituloCase(partes[0]) + ', ' + tituloCase(partes.slice(1).join(' '));
   }
 
-  const selTipo = $('tipoDoc');
-  selTipo.innerHTML = '<option disabled selected value="">Seleccione…</option>' +
+  const opcionesDoc = () =>
+    '<option disabled selected value="">Seleccione…</option>' +
     TIPOS_DOC.map((t) => `<option value="${t.id}">${t.id} — ${t.label}</option>`).join('');
+
+  const selTipo = $('tipoDoc');
+  selTipo.innerHTML = opcionesDoc();
+
+  // Mismo catálogo para el paciente, cuando lo firma otra persona.
+  const selTipoPaciente = $('pacienteTipoDoc');
+  selTipoPaciente.innerHTML = opcionesDoc();
 
   const selSede = $('sede');
 
@@ -187,6 +235,22 @@
   inpLugar.addEventListener('blur', () => {
     if (inpLugar.value.trim()) inpLugar.value = normalizarLugar(inpLugar.value);
   });
+
+  /* El documento del paciente sigue la misma regla: letras solo si es
+     pasaporte. */
+  const inpDocPaciente = $('pacienteDoc');
+  const cardPaciente   = $('cardPaciente');
+
+  function reglaDocPaciente() {
+    const esPasaporte = selTipoPaciente.value === 'PA';
+    inpDocPaciente.placeholder = esPasaporte ? 'Ej. AV123456' : 'Ej. 123456789';
+    inpDocPaciente.inputMode = esPasaporte ? 'text' : 'numeric';
+    inpDocPaciente.value = inpDocPaciente.value
+      .replace(esPasaporte ? NO_ALFANUM : NO_DIGITOS, '');
+    if (esPasaporte) inpDocPaciente.value = inpDocPaciente.value.toUpperCase();
+  }
+  selTipoPaciente.addEventListener('change', reglaDocPaciente);
+  inpDocPaciente.addEventListener('input', reglaDocPaciente);
 
   const cardAtencion = $('cardAtencion');
   const plano = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
@@ -1584,14 +1648,27 @@
     const prefijo = (membrete.razon || '') + ' ';
     if (sede.indexOf(prefijo) === 0) sede = sede.slice(prefijo.length);
 
-    /* ---------- Declaración ---------- */
-    let y = doc.paragraph([
-      { s: 'Yo. ' }, { s: d.nombreCompleto, bold: false },
+    /* ---------- Declaración ----------
+       Con un acompañante la constancia es sobre otra persona: cambia el
+       sujeto de la frase y el posesivo del final. */
+    const declaracion = d.paciente ? [
+      { s: 'Yo. ' }, { s: d.nombreCompleto },
+      { s: ' identificado con ' + d.tipoDocId + ' - ' + d.numeroDoc +
+           ', en calidad de ' + (d.calidad || 'acompañante o familiar') + ' de ' },
+      { s: d.paciente.nombre },
+      { s: ' identificado con ' + d.paciente.tipoDocId + ' - ' + d.paciente.numeroDoc +
+           ', certifico que recibió a satisfacción los servicios antes descritos por ' },
+      { s: sede },
+      { s: ' quedando constancia de esto en su historia clínica.' }
+    ] : [
+      { s: 'Yo. ' }, { s: d.nombreCompleto },
       { s: ' identificado con ' + d.tipoDocId + ' - ' + d.numeroDoc +
            ', certifico haber recibido a satisfacción los servicios antes descritos por ' },
       { s: sede },
       { s: ' quedando constancia de esto en mi historia clínica.' }
-    ], X0, 39.7, X1 - X0, { size: 9.2, rgb: C_CERT.texto });
+    ];
+    let y = doc.paragraph(declaracion, X0, 39.7, X1 - X0,
+                          { size: 9.2, rgb: C_CERT.texto });
 
     /* ---------- Tabla ---------- */
     const filas = [
@@ -1601,7 +1678,10 @@
       ['Observaciones:',  d.observaciones],
       ['Usuario:',        d.usuario]
     ];
-    let yf = 50.1;
+    /* La tabla arranca donde el documento de referencia, salvo que la
+       declaración crezca (nombres largos, o la frase del acompañante, que
+       lleva dos personas): entonces baja lo justo para no pisarla. */
+    let yf = Math.max(50.1, y + 2.2);
     doc.line(0, yf, W, yf, { width: 0.35, rgb: C_CERT.sepFuerte });
     filas.forEach((f, i) => {
       const base = yf + M_CERT.FILA - 2.3;
@@ -1621,7 +1701,9 @@
       doc.image('ImFirma', W / 2 - fw / 2, yRegla - fh - 4, fw, fh);
     }
     doc.line(X0, yRegla, X1, yRegla, { width: 0.55, rgb: C_CERT.texto });
-    doc.text('FIRMA PACIENTE / RESPONSABLE', W / 2, 124.7,
+    // El rótulo lo puede cambiar el rol desde porFormato.pdf.
+    doc.text((d.pdf && d.pdf.firmaCertificado) || 'FIRMA PACIENTE / RESPONSABLE',
+             W / 2, 124.7,
              { size: 8.6, align: 'center', rgb: C_CERT.gris, tracking: 0.5 });
     doc.text(d.tipoDocId + ' ' + d.numeroDoc + ' - ' + d.nombreCompleto, W / 2, 128.8,
              { size: 7.4, align: 'center', rgb: C_CERT.gris });
@@ -1700,6 +1782,37 @@
           fail(lugar, 'Use el formato "Ciudad, Departamento". Ej.: Montería, Córdoba');
         }
       }
+    }
+
+    /* Datos del paciente: los pide el rol, no el formato. Aparecen cuando
+       quien firma no es el propio paciente (acompañante en el certificado). */
+    let pacienteAparte = null;
+    if (pide('paciente')) {
+      const pn = $('pacienteNombre'), pt = $('pacienteTipoDoc'), pd = $('pacienteDoc');
+      if (!pn.value.trim()) fail(pn, 'Ingrese el nombre del paciente.');
+      if (!pt.value)        fail(pt, 'Seleccione el tipo de identificación del paciente.');
+
+      const pnum = pd.value.trim();
+      if (!pnum) {
+        fail(pd, 'Ingrese el número de identificación del paciente.');
+      } else if (pt.value === 'PA') {
+        if (!/^[0-9A-Z]{5,15}$/.test(pnum)) fail(pd, 'Pasaporte inválido (5 a 15 letras o números).');
+      } else if (!/^\d{5,15}$/.test(pnum)) {
+        fail(pd, 'Debe contener solo números (5 a 15 dígitos).');
+      }
+
+      /* Firmar como acompañante de uno mismo no tiene sentido y suele ser
+         un error de digitación. */
+      if (pnum && pnum === num) {
+        fail(pd, 'El paciente y quien firma no pueden tener el mismo documento.');
+      }
+
+      pacienteAparte = {
+        nombre: titleCase(pn.value),
+        tipoDocId: pt.value,
+        tipoDocLabel: (TIPOS_DOC.find((t) => t.id === pt.value) || {}).label,
+        numeroDoc: pnum
+      };
     }
 
     /* La finalidad se imprime dentro del punto 2 del formato: si queda
@@ -1798,7 +1911,9 @@
       razonSocial: ORG.razonSocial,
       personaId: PERSONA.id,
       personaLabel: PERSONA.label,
-      pdf: PERSONA.pdf,
+      calidad: PERSONA.calidad || '',
+      pdf: rotulosPdf(),
+      paciente: pacienteAparte,
       consentId: CONSENT.id,
       consentLabel: CONSENT.label,
       consent: CONSENT,
@@ -1843,6 +1958,15 @@
   }
 
 
+  function limpiarPaciente() {
+    ['pacienteNombre', 'pacienteDoc'].forEach((id) => {
+      const el = $(id); el.value = ''; clearError(el);
+    });
+    selTipoPaciente.value = '';
+    clearError(selTipoPaciente);
+    reglaDocPaciente();
+  }
+
   function limpiarFormulario() {
     ['nombres', 'apellidos', 'identificacion', 'lugarExpedicion', 'finalidad',
      'entidadRemitente', 'representadoNombre', 'representadoDoc',
@@ -1852,6 +1976,7 @@
     $('tipoDoc').value = '';
     clearError($('tipoDoc'));
     aplicarReglaDocumento();
+    limpiarPaciente();
 
     if (LIMPIAR_SEDE) {
       poblarSedes();   // vuelve al estado inicial de la entidad elegida
@@ -1905,10 +2030,16 @@
     submitLabel.textContent = texto;
   }
 
+  /* A qué buzón va este documento. Cada formato puede desviarse poniendo su
+     propio `correo`; el que no lo tenga usa el general. El Dropbox no cambia:
+     es el mismo para todos. */
+  const correoDestino = () =>
+    ((CONSENT && CONSENT.correo) || CFG.ENVIO_CORREO || '').trim();
+
   function enviarPorCorreo(bytes, nombreArchivo, d) {
     const payload = {
       secreto: CFG.ENVIO_SECRETO || '',
-      destinatario: CFG.ENVIO_CORREO || '',
+      destinatario: correoDestino(),
       nombreArchivo: nombreArchivo,
       pdfBase64: aBase64(bytes),
       datos: {
@@ -1927,7 +2058,11 @@
         fecha: d.fechaISO,
         menores: d.menores,
         soporte: soportes.map((s) => s.nombre),
-        responsable: d.responsable ? (d.responsable.nombre + ' — C.C. ' + d.responsable.documento) : ''
+        responsable: d.responsable ? (d.responsable.nombre + ' — C.C. ' + d.responsable.documento) : '',
+        // Solo viaja cuando quien firma no es el propio paciente.
+        paciente: d.paciente ? (d.paciente.nombre + ' — ' +
+                  (d.paciente.tipoDocLabel || d.paciente.tipoDocId) + ' ' +
+                  d.paciente.numeroDoc) : ''
       }
     };
 
@@ -2402,7 +2537,13 @@
       .then(() => {
         ultimoEnvio = null;
         mostrarGenerado(bytes, nombreArchivo);
+        /* Si el formato tiene buzón propio se nombra: quien registra debe
+           saber que ese documento no fue al correo de siempre. */
+        const otroBuzon = CONSENT && CONSENT.correo &&
+                          CONSENT.correo.trim() &&
+                          CONSENT.correo.trim() !== (CFG.ENVIO_CORREO || '').trim();
         setAlert('ok', resumen + ' Enviado al buzón' +
+          (otroBuzon ? ' ' + correoDestino() : '') +
           (modo.descarga ? ' y descargado en este equipo' : '') +
           '. Puede descargarlo otra vez; pulse "Generar nuevo consentimiento" ' +
           'cuando vaya a registrar al siguiente.');
@@ -2453,12 +2594,27 @@
   }
 
   const personaChoices = $('personaChoices');
-  TIPOS_PERSONA.forEach((t) => {
-    const b = tarjeta('<svg viewBox="0 0 96 96"><use href="#ic-' + t.id + '"/></svg>',
-                      t.label, t.descripcion);
-    b.addEventListener('click', () => elegirPersona(t));
-    personaChoices.appendChild(b);
-  });
+
+  /* Solo se ofrecen los roles que tengan al menos un formato disponible en
+     esta entidad: si a alguno se le apagan todos en TIPOS_PERSONA, deja de
+     aparecer en el paso 1. */
+  function poblarPersonas() {
+    personaChoices.innerHTML = '';
+    const antes = PERSONA;
+    const lista = TIPOS_PERSONA.filter((t) => {
+      PERSONA = t;
+      const hay = consentsDisponibles().length > 0;
+      PERSONA = antes;
+      return hay;
+    });
+    personaChoices.className = 'asc-choices asc-choices--' + Math.min(lista.length, 4);
+    lista.forEach((t) => {
+      const b = tarjeta('<svg viewBox="0 0 96 96"><use href="#ic-' + t.id + '"/></svg>',
+                        t.label, t.descripcion);
+      b.addEventListener('click', () => elegirPersona(t));
+      personaChoices.appendChild(b);
+    });
+  }
 
   const consentChoices = $('consentChoices');
 
@@ -2497,6 +2653,7 @@
     $('chosenOrgLogo').src = o.logoApp;
     $('chosenOrg').textContent = o.nombre;
     poblarSedes();
+    poblarPersonas();
     poblarCategorias();
     numerarPasos();
   }
@@ -2507,6 +2664,11 @@
     $('chosenPersona').textContent = t.label;
     $('chosenPersonaIcon').setAttribute('href', '#ic-' + t.id);
     refreshMinors();
+
+    /* El rol decide qué formatos quedan, así que las categorías y la
+       numeración de los pasos se recalculan aquí. */
+    poblarCategorias();
+    numerarPasos();
 
     // Con una sola categoría no hay nada que elegir: se salta ese paso.
     const cats = categoriasDeOrg();
@@ -2563,6 +2725,18 @@
       ['representadoNombre', 'representadoDoc'].forEach((id) => {
         $(id).value = ''; clearError($(id));
       });
+    }
+
+    /* Datos del paciente aparte: lo enciende el rol desde porFormato. */
+    const verPaciente = pide('paciente');
+    cardPaciente.classList.toggle('asc-hidden', !verPaciente);
+    if (verPaciente) {
+      $('tituloDatosPaciente').textContent = 'Datos del paciente';
+      $('notaDatosPaciente').textContent =
+        'La persona que recibió la atención. ' +
+        (PERSONA ? 'Quien firma lo hace en calidad de ' + (PERSONA.calidad || PERSONA.label.toLowerCase()) + '.' : '');
+    } else {
+      limpiarPaciente();
     }
 
     const verMenores = pide('menores') && PERSONA && PERSONA.permiteMenores;
@@ -2643,6 +2817,7 @@
     }
     const hayDatos = $('nombres').value.trim() || $('apellidos').value.trim() ||
                      $('identificacion').value.trim() ||
+                     $('pacienteNombre').value.trim() || $('pacienteDoc').value.trim() ||
                      firmaPaciente.tieneTrazos() || soportes.length;
     if (hayDatos && !window.confirm('Se perderán los datos, la firma y los archivos adjuntos de este registro. ¿Continuar?')) return;
     alertBox.classList.add('asc-hidden');
@@ -2659,6 +2834,7 @@
     });
     $('tipoDoc').value = '';
     clearError($('tipoDoc'));
+    limpiarPaciente();
     toggleMinor.checked = false;
     minorFormContainer.classList.add('asc-hidden');
     minorsList.innerHTML = '';
@@ -2696,4 +2872,7 @@
 
   refreshMinors();
   aplicarReglaDocumento();
+
+  // El HTML comprueba esta marca: si falta, es que el módulo no llegó al final.
+  window.__ascListo = true;
 })();

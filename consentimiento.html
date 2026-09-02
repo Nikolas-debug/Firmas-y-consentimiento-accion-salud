@@ -4,9 +4,8 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Acción Salud — Autorización de uso de imagen</title>
-
+<link rel="icon" href="images/favicon.ico" sizes="32x32">
 <link rel="stylesheet" href="css/consentimiento.css"/>
-
 <style>
   body { margin: 0; background: #f9f9ff; }
 </style>
@@ -241,6 +240,33 @@
               <textarea class="asc-input asc-textarea" id="finalidad" name="finalidad" rows="3"
                         maxlength="400" placeholder="Ej. Prestación de servicios de salud, facturación y seguimiento clínico"></textarea>
               <p class="asc-note">Se imprime en el punto 2 del formato, después de «la cual consiste en:».</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Datos del paciente: solo cuando el rol que firma no es el propio
+             paciente (p. ej. un acompañante en el certificado). -->
+        <section class="asc-card asc-hidden" id="cardPaciente">
+          <h3 class="asc-card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <span id="tituloDatosPaciente">Datos del paciente</span>
+          </h3>
+          <p class="asc-note" id="notaDatosPaciente" style="margin-bottom:16px">La persona que recibió la atención.</p>
+
+          <div class="asc-fields asc-fields--2">
+            <div class="asc-field asc-field--full">
+              <label class="asc-label" for="pacienteNombre">Nombres y apellidos del paciente</label>
+              <input class="asc-input" id="pacienteNombre" name="pacienteNombre" type="text"
+                     maxlength="80" placeholder="Nombres y apellidos"/>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="pacienteTipoDoc">Tipo de identificación</label>
+              <select class="asc-select" id="pacienteTipoDoc" name="pacienteTipoDoc"></select>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="pacienteDoc">Número de identificación</label>
+              <input class="asc-input" id="pacienteDoc" name="pacienteDoc" type="text"
+                     inputmode="numeric" maxlength="15" placeholder="Ej. 123456789"/>
             </div>
           </div>
         </section>
@@ -554,6 +580,44 @@
 <!-- pdf-lib: solo se usa para anexar el escaneo del documento al final del
      consentimiento. El PDF del formato lo sigue construyendo pdf-writer.js. -->
 <script defer src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+<!-- Aviso de carga fallida.
+     Va aquí, en línea y sin defer, para que exista antes que los tres
+     archivos de abajo y siga existiendo aunque alguno de ellos llegue a
+     medias. Sin esto, un archivo incompleto dejaba el paso 1 en blanco: la
+     página se veía bien pero no había tarjetas ni forma de seguir. -->
+<script>
+window.ascFalloCarga = function (detalle) {
+  if (document.getElementById('ascFalloCarga')) return;
+  console.error('[Consentimiento] ' + detalle);
+  var zona = document.querySelector('.asc-setup-wrap') ||
+             document.querySelector('.asc-wrap') ||
+             document.querySelector('.asc') || document.body;
+  if (!zona) return;
+  var caja = document.createElement('div');
+  caja.className = 'asc-alert asc-alert--error';
+  caja.id = 'ascFalloCarga';
+  caja.setAttribute('role', 'alert');
+  var t = document.createElement('strong');
+  t.textContent = 'El formulario no se pudo cargar.';
+  var p = document.createElement('p');
+  p.style.margin = '6px 0 0';
+  p.textContent = 'Recargue la página con Ctrl + F5. Si vuelve a pasar, ' +
+                  'avise a soporte con este dato: ' + detalle + '.';
+  caja.appendChild(t); caja.appendChild(p);
+  zona.insertBefore(caja, zona.firstChild);
+};
+
+/* Los tres archivos son defer, así que ya corrieron cuando salta este
+   evento. Si el módulo no dejó su marca, no llegó al final. */
+document.addEventListener('DOMContentLoaded', function () {
+  if (window.__ascListo) return;
+  var falta = !window.CONSENT_CONFIG ? 'consentimiento-config.js'
+            : (typeof PDFDoc === 'undefined') ? 'pdf-writer.js'
+            : 'consentimiento.js';
+  window.ascFalloCarga('no se cargó completo ' + falta);
+});
+</script>
 
 <script defer src="js/script/consentimiento-config.js"></script>
 <script defer src="js/script/pdf-writer.js"></script>

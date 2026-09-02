@@ -57,8 +57,7 @@ window.CONSENT_CONFIG = {
         finalidad:       true
       },
       bloqueFirma: {
-        paciente:    'paciente',
-        acompanante: 'paciente'
+        paciente: 'paciente'
       },
       sitioWeb: 'www.esap.edu.co'
     },
@@ -73,6 +72,7 @@ window.CONSENT_CONFIG = {
       vigenteHasta: 'AGO/2028',
       logoPdfKey: 'LOGO_CREAS',
       sedeFija: 'creas',
+      correo: 'creasconecta@accionsalud.com',
       colorMarco: [59, 191, 193],
       tituloApp: 'Consentimiento informado — CREAS Conecta',
       leadApp: 'Uso de datos personales y hoja de vida. Complete los datos: la información debe coincidir con el documento de identidad.',
@@ -471,7 +471,6 @@ window.CONSENT_CONFIG = {
     }
   ],
 
-
   TIPOS_PERSONA: [
     {
       id: 'paciente',
@@ -485,6 +484,15 @@ window.CONSENT_CONFIG = {
         tituloBloque:  'Adulto',
         tituloFirma:   'Firma autorización adulto (s).',
         captionNombre: 'Nombre del paciente'
+      },
+
+      // El paciente puede firmar todos los formatos.
+      formatos: {
+        imagen:               true,
+        datos:                true,
+        creas_conecta:        true,
+        pacientes_sf:         true,
+        certificado_atencion: true
       }
     },
     {
@@ -495,10 +503,30 @@ window.CONSENT_CONFIG = {
       hintFirma: 'Firma del acompañante o familiar.',
       hintFirmaMenores: 'Firma del padre, madre o acudiente que autoriza.',
       permiteMenores: true,
+      // Cómo se nombra su vínculo con el paciente dentro del texto del PDF.
+      calidad: 'acompañante o familiar',
       pdf: {
         tituloBloque:  'Acompañante o familiar',
         tituloFirma:   'Firma autorización acompañante o familiar.',
         captionNombre: 'Nombre del acompañante o familiar'
+      },
+
+      formatos: {
+        imagen:               true,
+        // El tratamiento de datos personales solo lo autoriza su titular.
+        datos:                false,
+        creas_conecta:        true,
+        pacientes_sf:         true,
+        certificado_atencion: true
+      },
+
+      porFormato: {
+        /* El acompañante certifica que el PACIENTE recibió los servicios, así
+           que el formulario pide además los datos de ese paciente. */
+        certificado_atencion: {
+          campos: { paciente: true },
+          pdf: { firmaCertificado: 'FIRMA ACOMPAÑANTE O FAMILIAR' }
+        }
       }
     }
   ],
@@ -542,7 +570,6 @@ window.CONSENT_CONFIG = {
   // En Apps Script
   ENVIO_SECRETO: 'CLAVE-SECRETA-PARA-ENVIO-DE-CORREOS-CONSENTIMIENTOS',
 
-  // Buzón
   ENVIO_CORREO:  'accion.saludac@gmail.com',
   // ────────────────────────────────────────────────────────────────────
 

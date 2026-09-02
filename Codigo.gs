@@ -1,6 +1,25 @@
 var CONFIG = {
   SECRETO: 'CLAVE-SECRETA-PARA-ENVIO-DE-CORREOS-CONSENTIMIENTOS',
+
+  // Buzón por defecto: el que se usa si el formulario no pide otro.
   DESTINATARIO: 'accion.saludac@gmail.com',
+
+  /* Buzones a los que este script acepta desviar un documento.
+     El formulario puede pedir uno distinto (un formato con su propio
+     `correo`, como CREAS Conecta), pero solo se le hace caso si el correo
+     está en esta lista. Cualquier otro se descarta y se usa DESTINATARIO.
+
+     Es a propósito: el secreto viaja en el JavaScript de un sitio público,
+     así que cualquiera puede leerlo. Sin esta lista, el script serviría para
+     mandar correo con adjuntos a donde fuera, en nombre de la cuenta que lo
+     publicó.
+
+     Para habilitar un buzón nuevo hay que ponerlo en los dos lados: aquí y
+     en el `correo` del formato dentro de consentimiento-config.js. */
+  DESTINATARIOS_PERMITIDOS: [
+    'accion.saludac@gmail.com'
+    // , 'correo.de.creas@ejemplo.com'
+  ],
  
   ASUNTO_PREFIJO: '[Consentimiento ASI-FOR-018]',
   GUARDAR_EN_DRIVE: false,
@@ -42,7 +61,7 @@ function doPost(e) {
       return respuesta(false, 'Falta el documento.');
     }
  
-    var destino = CONFIG.DESTINATARIO || datos.destinatario;
+    var destino = elegirDestino(datos.destinatario);
     if (!destino || destino.indexOf('@') === -1) {
       return respuesta(false, 'Destinatario no configurado.');
     }
@@ -91,6 +110,25 @@ function doPost(e) {
   }
 }
  
+/* Decide a qué buzón va el documento: el que pide el formulario si está
+   permitido, y si no el de siempre. */
+function elegirDestino(pedido) {
+  var porDefecto = CONFIG.DESTINATARIO || '';
+  var quiere = String(pedido || '').trim().toLowerCase();
+  if (!quiere || quiere === porDefecto.trim().toLowerCase()) return porDefecto;
+
+  var permitidos = CONFIG.DESTINATARIOS_PERMITIDOS || [];
+  for (var i = 0; i < permitidos.length; i++) {
+    if (String(permitidos[i]).trim().toLowerCase() === quiere) return permitidos[i];
+  }
+
+  /* Queda en el registro del script (Ejecuciones): si un formato no llega a
+     su buzón, aquí se ve por qué. */
+  console.warn('Destino no permitido: ' + quiere + '. Se usó ' + porDefecto +
+               '. Agréguelo a CONFIG.DESTINATARIOS_PERMITIDOS si es correcto.');
+  return porDefecto;
+}
+
 function doGet() {
   return ContentService
     .createTextOutput(JSON.stringify({ ok: true, servicio: 'Consentimientos ASI-FOR-018' }))
@@ -121,6 +159,7 @@ function cuerpoCorreo(info, nombreArchivo) {
   if (info.finalidad) l.push('Finalidad:      ' + info.finalidad);
   l.push('Nombre:         ' + (info.nombre || '—'));
   l.push('Documento:      ' + (info.tipoDocumento || '—') + ' ' + (info.documento || ''));
+  if (info.paciente) l.push('Paciente:       ' + info.paciente);
   l.push('Expedido en:    ' + (info.lugarExpedicion || '—'));
   l.push('Sede:           ' + (info.sede || '—'));
   l.push('Ciudad:         ' + (info.ciudad || '—') + ', ' + (info.departamento || '—'));
