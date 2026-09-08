@@ -461,7 +461,7 @@ window.CONSENT_CONFIG = {
       titulo: 'CERTIFICADO DE RECEPCIÓN DEL SERVICIO DE ALIMENTACIÓN',
       servicio: 'SUMINISTRO / ENTREGA DE ALIMENTACIÓN',
       tituloApp: 'Certificado de recepción del servicio de alimentación',
-      leadApp: 'Constancia de la alimentación entregada. Lo firma el responsable de la institución, no el beneficiario.',
+      leadApp: 'Constancia de la alimentación entregada. Firman quien la recibe y el responsable de la institución.',
       tituloDatos: 'Datos del beneficiario',
       campos: {
         lugarExpedicion: false,
@@ -471,8 +471,8 @@ window.CONSENT_CONFIG = {
         entidad:         false,
         representado:    false,
         atencion:        false,
-        // No la firma el beneficiario: solo el responsable de la institución.
-        firma:           false,
+        // Firman los dos: quien recibe y quien entrega por la institución.
+        firma:           true,
         responsable:     true,
         alimentacion:    true
       },
@@ -629,7 +629,8 @@ window.CONSENT_CONFIG = {
         pacientes_sf:         false,
         certificado_atencion: true,
         hoja_vida:            false,
-        alimentacion_sf:      false,
+        // Puede recibir la alimentación en nombre del paciente.
+        alimentacion_sf:      true,
         // El acompañante sí puede aceptar el apoyo de transporte.
         transporte_creas:     true
       },
@@ -640,6 +641,12 @@ window.CONSENT_CONFIG = {
         certificado_atencion: {
           campos: { paciente: true },
           pdf: { firmaCertificado: 'FIRMA ACOMPAÑANTE O FAMILIAR' }
+        },
+        /* Recibe la alimentación por el paciente: se piden los datos de los
+           dos, pero firma solo el acompañante. */
+        alimentacion_sf: {
+          campos: { paciente: true },
+          pdf: { firmaCertificado: 'ACOMPAÑANTE O FAMILIAR' }
         }
       }
     }

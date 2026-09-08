@@ -1193,7 +1193,6 @@
   const tiposAlimCont    = $('tiposAlimentacion');
   const alimError        = $('alimentacionError');
   const inpRaciones      = $('raciones');
-  const inpUsuarioAlim   = $('usuarioAlimentacion');
 
   const TIPOS_ALIM = () => (CONSENT && CONSENT.TIPOS_ALIMENTACION) || [];
 
@@ -1235,11 +1234,6 @@
 
   filtrarEntrada(inpRaciones, NO_DIGITOS);
 
-  /* Mismo trato que el usuario del certificado de atención: se recuerda
-     mientras dure la sesión. */
-  inpUsuarioAlim.value = usuarioRecordado();
-  inpUsuarioAlim.addEventListener('change',
-    () => recordarUsuario(inpUsuarioAlim.value.trim()));
 
   /* La firma del responsable de la institución se guarda en la sesión: es la
      misma persona firmando lo mismo toda la jornada, y volver a trazarla en
@@ -2508,6 +2502,7 @@
     if (d.consent.banda) {
       doc.addImage('ImBanda', d.consent.banda.b64, d.consent.banda.w, d.consent.banda.h);
     }
+    if (d.firma) doc.addImage('ImFirma', d.firma.b64, d.firma.w, d.firma.h);
     if (d.firmaResponsable) {
       doc.addImage('ImFirmaResp', d.firmaResponsable.b64,
                    d.firmaResponsable.w, d.firmaResponsable.h);
@@ -2547,23 +2542,36 @@
 
     let sede = d.sedeNombre || 'UNIDAD SAN FELIPE';
 
-    /* ---------- Declaración ---------- */
-    let y = doc.paragraph([
+    /* ---------- Declaración ----------
+       Si recibe un acompañante, la constancia es sobre otra persona: cambia
+       el sujeto de la frase, igual que en el certificado de atención. */
+    const declaracion = d.paciente ? [
+      { s: 'Yo, ' }, { s: d.nombreCompleto },
+      { s: ', identificado(a) con ' + d.tipoDocId + ' - ' + d.numeroDoc +
+           ', en calidad de ' + (d.calidad || 'acompañante o familiar') + ' de ' },
+      { s: d.paciente.nombre },
+      { s: ', identificado(a) con ' + d.paciente.tipoDocId + ' - ' + d.paciente.numeroDoc +
+           ', certifico que recibió a satisfacción el servicio de alimentación ' +
+           'suministrado por la institución en la sede ' },
+      { s: sede },
+      { s: ', dejando constancia de la recepción del servicio prestado.' }
+    ] : [
       { s: 'Yo, ' }, { s: d.nombreCompleto },
       { s: ', identificado(a) con ' + d.tipoDocId + ' - ' + d.numeroDoc +
            ', certifico haber recibido a satisfacción el servicio de alimentación ' +
            'suministrado por la institución en la sede ' },
       { s: sede },
       { s: ', dejando constancia de la recepción del servicio prestado.' }
-    ], X0, yTit + 8.1, X1 - X0, { size: 9.2, rgb: C_CERT.texto });
+    ];
+    let y = doc.paragraph(declaracion, X0, yTit + 8.1, X1 - X0,
+                          { size: 9.2, rgb: C_CERT.texto });
 
     /* ---------- Tabla ---------- */
     const filas = [
       ['Fecha:',                fechaCortaHV(al.fecha)],
       ['Servicio:',             d.consent.servicio || ''],
       ['Tipo de alimentación:', (al.tipos || []).join(' / ')],
-      ['Cantidad:',             al.raciones ? al.raciones + (al.raciones === '1' ? ' ración' : ' raciones') : ''],
-      ['Usuario:',              al.usuario]
+      ['Cantidad:',             al.raciones ? al.raciones + (al.raciones === '1' ? ' ración' : ' raciones') : '']
     ];
     let yf = Math.max(50.1, y + 2.2);
     doc.line(0, yf, W, yf, { width: 0.35, rgb: C_CERT.sepFuerte });
@@ -2576,24 +2584,37 @@
       doc.line(0, yf, W, yf, { width: 0.35, rgb: ultima ? C_CERT.sepFuerte : C_CERT.sepSuave });
     });
 
-    /* ---------- Firma del responsable ----------
-       El bloque de firma se ancla debajo de la tabla, no a una altura fija:
-       con la banda y un título de dos líneas la tabla baja bastante, y una
-       posición fija la pisaba. */
+    /* ---------- Las dos firmas ----------
+       Quien recibe a la izquierda y quien entrega a la derecha. El bloque se
+       ancla debajo de la tabla, no a una altura fija: con la banda y un
+       título de dos líneas la tabla baja bastante y la pisaba. */
     const yRegla = Math.max(120.6, yf + 26);
-    if (d.firmaResponsable) {
-      let fh = 17, fw = fh * d.firmaResponsable.w / d.firmaResponsable.h;
-      const maxW = 70;
-      if (fw > maxW) { fw = maxW; fh = fw * d.firmaResponsable.h / d.firmaResponsable.w; }
-      doc.image('ImFirmaResp', W / 2 - fw / 2, yRegla - fh - 4, fw, fh);
+    const LX0 = 18, LX1 = 100, RX0 = 116, RX1 = 198;
+
+    function bloqueFirmaAlim(x0, x1, img, jpeg, rotulo, pie) {
+      const cx = (x0 + x1) / 2;
+      if (jpeg) {
+        let fh = 15, fw = fh * jpeg.w / jpeg.h;
+        const maxW = x1 - x0 - 8;
+        if (fw > maxW) { fw = maxW; fh = fw * jpeg.h / jpeg.w; }
+        doc.image(img, cx - fw / 2, yRegla - fh - 3, fw, fh);
+      }
+      doc.line(x0, yRegla, x1, yRegla, { width: 0.55, rgb: C_CERT.texto });
+      doc.text(rotulo, cx, yRegla + 4.1,
+               { size: 7.8, align: 'center', rgb: C_CERT.gris, tracking: 0.4 });
+      if (pie) {
+        doc.text(pie, cx, yRegla + 8.2, { size: 7.2, align: 'center', rgb: C_CERT.gris });
+      }
     }
-    doc.line(X0, yRegla, X1, yRegla, { width: 0.55, rgb: C_CERT.texto });
-    doc.text('FIRMA DEL RESPONSABLE DE LA INSTITUCIÓN', W / 2, yRegla + 4.1,
-             { size: 8.6, align: 'center', rgb: C_CERT.gris, tracking: 0.5 });
-    if (d.responsable) {
-      doc.text('C.C. ' + d.responsable.documento + ' - ' + d.responsable.nombre,
-               W / 2, yRegla + 8.2, { size: 7.4, align: 'center', rgb: C_CERT.gris });
-    }
+
+    /* El rótulo de la izquierda lo puede cambiar el rol: si recibe un
+       acompañante, dice que es él y no el beneficiario. */
+    const rotIzq = (d.pdf && d.pdf.firmaCertificado) || 'BENEFICIARIO';
+    bloqueFirmaAlim(LX0, LX1, 'ImFirma', d.firma, 'FIRMA DE QUIEN RECIBE — ' + rotIzq,
+                    d.tipoDocId + ' ' + d.numeroDoc + ' - ' + d.nombreCompleto);
+    bloqueFirmaAlim(RX0, RX1, 'ImFirmaResp', d.firmaResponsable,
+                    'RESPONSABLE DE LA INSTITUCIÓN',
+                    d.responsable ? 'C.C. ' + d.responsable.documento + ' - ' + d.responsable.nombre : '');
 
     /* ---------- Recuadro de fecha de generación ---------- */
     const cajaY = yRegla + 12.6, cajaH = 12.1;
@@ -2867,15 +2888,10 @@
         fail(inpRaciones, 'Debe ser un número mayor que cero.');
       }
 
-      if (!inpUsuarioAlim.value.trim()) {
-        fail(inpUsuarioAlim, 'Indique el usuario que registra.');
-      }
-
       alimentacion = {
         fecha: fechaAl.value,
         tipos: tipos.map((t) => t.label),
-        raciones: rac,
-        usuario: titleCase(inpUsuarioAlim.value)
+        raciones: rac
       };
     }
 
@@ -3711,9 +3727,13 @@
   // Paso 2 (o automático, si el documento admite un solo rol).
   function elegirPersona(t) {
     PERSONA = t;
-    // El formato puede renombrar el bloque: en la hoja de vida ese primer
-    // bloque es la identificación, y "Datos personales" es la sección 1.
-    $('tituloDatos').textContent = (CONSENT && CONSENT.tituloDatos) || t.tituloDatos;
+    /* El formato puede renombrar el bloque: en la hoja de vida ese primer
+       bloque es la identificación, y "Datos personales" es la sección 1.
+       Pero si el rol abre una tarjeta aparte para el paciente, el bloque
+       principal pasa a ser el de quien firma, así que manda el rol: llamarlo
+       "Datos del beneficiario" cuando lo llena el acompañante confundiría. */
+    $('tituloDatos').textContent =
+      (!pide('paciente') && CONSENT && CONSENT.tituloDatos) || t.tituloDatos;
     $('chosenPersona').textContent = t.label;
     $('chosenPersonaIcon').setAttribute('href', '#ic-' + t.id);
     refreshMinors();
@@ -3794,7 +3814,6 @@
       if (!$('fechaAlimentacion').value) {
         $('fechaAlimentacion').value = new Date().toISOString().slice(0, 10);
       }
-      if (!inpUsuarioAlim.value) inpUsuarioAlim.value = usuarioRecordado();
     } else {
       limpiarAlimentacion();
     }
