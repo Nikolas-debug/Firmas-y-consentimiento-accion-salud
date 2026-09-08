@@ -3,20 +3,15 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Unidad San Felipe — Consentimiento informado</title>
-
+<title>CREAS — Consentimientos y documentos</title>
+<link rel="icon" href="images/favicon.ico" sizes="32x32">
 <link rel="stylesheet" href="css/consentimiento.css"/>
-
 <style>
   body { margin: 0; background: #f9f9ff; }
 </style>
 </head>
-<body data-entidad="san_felipe">
+<body data-entidad="creas">
 
-<!-- =====================================================================
-     Íconos de los tipos de persona. Viven aquí como <symbol> para poder
-     referenciarlos con <use href="#ic-…"> desde cualquier parte del módulo.
-     ===================================================================== -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
 
   <symbol id="ic-paciente" viewBox="0 0 96 96">
@@ -134,16 +129,13 @@
 </svg>
 
 <header class="asc-header">
-  <img class="asc-logo" id="appLogo" src="images/Logo_unidad_San_Felipe.png" alt="Unidad San Felipe"/>
+  <img class="asc-logo" id="appLogo" src="images/logo2.png" alt="CREAS — Centro de Rehabilitación"/>
 </header>
 
 <div class="asc">
 
   <section class="asc-setup" id="ascSetup">
     <div class="asc-setup-wrap">
-
-      <!-- Paso 1: quién firma. La entidad ya no se elige: la fija la página
-           (data-entidad en el body). -->
       <!-- Paso 1: qué documento. La entidad la fija la página; quién firma
            depende del documento, así que va después. -->
       <div class="asc-setup-step" id="stepConsent">

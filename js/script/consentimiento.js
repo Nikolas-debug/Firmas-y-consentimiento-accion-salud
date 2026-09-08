@@ -1737,9 +1737,15 @@
     if (lh > cellH) { lh = cellH; lw = lh * d.logo.w / d.logo.h; }
     doc.image('ImLogo', X0 + (X1 - X0 - lw) / 2, HY[0] + (HY[U] - HY[0] - lh) / 2, lw, lh);
 
+    /* El título lo pone el formato: el encabezado es el mismo para los dos
+       documentos de CREAS que lo usan. */
     const cx = (X1 + X2) / 2;
-    doc.text('CONSENTIMIENTO INFORMADO', cx, 29.4, { size: 9.5, bold: true, align: 'center' });
-    doc.text('CREAS CONECTA – USO DE DATOS PERSONALES', cx, 33.4, { size: 9.5, bold: true, align: 'center' });
+    const lineas = d.consent.tituloPdf ||
+                   ['CONSENTIMIENTO INFORMADO', 'CREAS CONECTA – USO DE DATOS PERSONALES'];
+    const y0 = (HY[0] + HY[U]) / 2 - (lineas.length - 1) * 2 - 0.6;
+    lineas.forEach((t, i) => {
+      doc.text(t, cx, y0 + i * 4, { size: 9.5, bold: true, align: 'center' });
+    });
 
     const cx3 = (X2 + X3) / 2;
     const filas = [
@@ -2609,6 +2615,113 @@
     return doc.build();
   }
 
+  /* Los seis párrafos del AS-SM-PROC-008, transcritos del documento de
+     referencia. Las negritas son las del original. El primero se arma aparte
+     porque lleva intercalados el nombre y el documento de quien firma. */
+  const CUERPO_TRANSPORTE = [
+    [{ s: 'Entiendo que este apoyo se brinda de manera gratuita y voluntaria, conforme a las condiciones, disponibilidad y mecanismos establecidos por ACCIÓN SALUD PARA TODOS S.A.S., por lo que la institución podrá modificarlo, suspenderlo o finalizarlo, informando oportunamente cuando corresponda.' }],
+    [{ s: 'Me comprometo a hacer un uso adecuado del transporte, atender las instrucciones de seguridad y suministrar la información necesaria para su adecuada coordinación.' }],
+    [{ s: 'En caso de accidente o incidente durante el traslado, me comprometo a informar inmediatamente al conductor o al personal responsable y a seguir las instrucciones de seguridad. ACCIÓN SALUD PARA TODOS S.A.S. activará, cuando corresponda, los mecanismos de atención y emergencia aplicables según la naturaleza del evento.' }],
+    [{ s: 'Autorizo a ACCIÓN SALUD PARA TODOS S.A.S. para realizar el tratamiento de los datos personales necesarios para la coordinación, gestión y seguimiento del apoyo de transporte, de conformidad con la normativa vigente y las políticas institucionales.' }]
+  ];
+
+  /* =======================================================================
+     AS-SM-PROC-008 — Constancia de aceptación para apoyo voluntario de
+     transporte. Comparte encabezado y pie de firmas con el AS-SM-PROC-007:
+     son el mismo formato de CREAS con otro cuerpo.
+     ======================================================================= */
+  function generarPDFTransporte(d) {
+    const doc = new PDFDoc({ width: 210, height: 297 });
+    doc.addImage('ImLogo', d.logo.b64, d.logo.w, d.logo.h);
+    if (d.firma) doc.addImage('ImFirma', d.firma.b64, d.firma.w, d.firma.h);
+
+    const X0 = 25, W = 165;
+    const SZ = 9.8;
+    let y, yPagina;
+
+    function nuevaPagina() {
+      doc.addPage();
+      yPagina = dibujarEncabezado7(doc, d);
+      y = M7.BODY_TOP;
+    }
+    function espacio(alto) { if (y + alto > M7.BODY_BOTTOM) nuevaPagina(); }
+
+    nuevaPagina();
+
+    /* Primer párrafo: el nombre y el documento van subrayados sobre la línea,
+       como en el impreso. */
+    y = doc.paragraph([
+      { s: 'Yo, ' }, { s: d.nombreCompleto, bold: true, underline: true },
+      { s: ', identificado(a) con documento de identidad No. ' },
+      { s: d.numeroDoc, bold: true, underline: true },
+      { s: ', manifiesto que he recibido información clara, suficiente y comprensible por parte de ' },
+      { s: 'ACCIÓN SALUD PARA TODOS S.A.S.', bold: true },
+      { s: ' sobre el apoyo voluntario de transporte que la institución dispone para facilitar mi asistencia y favorecer la continuidad de mi participación en el programa ' },
+      { s: 'Hospital Día – CREAS.', bold: true }
+    ], X0, y, W, { size: SZ }) + 4;
+
+    CUERPO_TRANSPORTE.forEach((runs) => {
+      espacio(18);
+      y = doc.paragraph(runs, X0, y, W, { size: SZ }) + 4;
+    });
+
+    espacio(18);
+    y = doc.paragraph([
+      { s: 'Con mi firma, en la ciudad de ' }, { s: d.ciudad, bold: true, underline: true },
+      { s: ', a los ' },                       { s: d.dia,    bold: true, underline: true },
+      { s: ' días del mes de ' },              { s: d.mes,    bold: true, underline: true },
+      { s: ' de ' },                           { s: d.anio,   bold: true, underline: true },
+      { s: ', manifiesto que he leído y comprendido la información contenida en el presente documento y acepto las condiciones del apoyo de transporte.' }
+    ], X0, y, W, { size: SZ });
+
+    /* ---------- Las dos firmas ---------- */
+    const LX0 = 25, LX1 = 103, RX0 = 112, RX1 = 190;
+    const destino = (d.consent.bloqueFirma || {})[d.personaId] || 'paciente';
+    const ALTO_FIRMA = 11;
+    const SOBRE_LINEA = ALTO_FIRMA + 5;
+
+    espacio(SOBRE_LINEA + 22);
+    y += SOBRE_LINEA + 6;
+    const yFirma = y;
+
+    function bloqueT(x0, x1, rotulo, mio) {
+      let yy = yFirma;
+      if (mio && d.firma) {
+        let fh = ALTO_FIRMA, fw = fh * d.firma.w / d.firma.h;
+        if (fw > x1 - x0 - 6) { fw = x1 - x0 - 6; fh = fw * d.firma.h / d.firma.w; }
+        doc.image('ImFirma', x0 + 3, yy - fh - 3.5, fw, fh);
+      }
+      if (mio) doc.text(d.nombreCompleto, x0 + 3, yy - 1.4, { size: 9, bold: true });
+      doc.line(x0, yy, x1, yy, { width: 0.5 });
+      yy += 4.6;
+      doc.text(rotulo, x0, yy, { size: 9.5, bold: true });
+      // El original deja un renglón en blanco antes de la línea de la cédula.
+      yy += 9.4;
+      const fin = doc.text('C.C. o HUELLA', x0, yy, { size: 9.5, bold: true });
+      if (mio) doc.text(' ' + d.numeroDoc, fin + 1.5, yy, { size: 9.5, bold: true });
+      doc.line(fin + 1, yy + 1.2, x1, yy + 1.2, { width: 0.4 });
+      return yy + 6;
+    }
+
+    const yIzq = bloqueT(LX0, LX1, 'BENEFICIARIO Y/O USUARIO', destino === 'paciente');
+    const yDer = bloqueT(RX0, RX1, 'TESTIGO Y/O APODERADO',    destino === 'testigo');
+    y = Math.max(yIzq, yDer);
+
+    // Pie del original, con el visto bueno del área jurídica.
+    if (d.consent.revisor) {
+      doc.text(d.consent.revisor, X0, Math.min(y + 14, M7.BODY_BOTTOM + 6), { size: 8 });
+    }
+
+    const N = doc.pageCount();
+    const cx3 = (M7.X2 + M7.X3) / 2;
+    for (let i = 0; i < N; i++) {
+      doc.current = doc.pages[i];
+      doc.text('Página ' + (i + 1) + ' de ' + N, cx3, yPagina, { size: 7.6, bold: true, align: 'center' });
+    }
+
+    return doc.build();
+  }
+
   const CONSTRUCTORES = {
     imagen: generarPDF,
     datos: generarPDF14,
@@ -2616,7 +2729,8 @@
     pacientes_sf: generarPDFSanFelipe,
     certificado_atencion: generarPDFCertificado,
     hoja_vida: generarPDFHojaVida,
-    alimentacion_sf: generarPDFAlimentacion
+    alimentacion_sf: generarPDFAlimentacion,
+    transporte_creas: generarPDFTransporte
   };
 
   const form = $('consentForm');
@@ -2984,7 +3098,10 @@
         tipoDocumento: d.tipoDocLabel,
         documento: d.numeroDoc,
         lugarExpedicion: d.lugarExpedicion,
-        sede: d.sedeNombre,
+        /* Un formato sin sede (la hoja de vida) no manda ninguna, aunque la
+           entidad tenga una sola y el select la preseleccione: nadie la
+           eligió, y en el correo sería un dato inventado. */
+        sede: d.consent.campos.sede === false ? '' : d.sedeNombre,
         ciudad: d.ciudad,
         departamento: d.departamento,
         fecha: d.fechaISO,

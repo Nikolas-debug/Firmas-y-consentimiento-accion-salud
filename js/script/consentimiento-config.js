@@ -52,6 +52,7 @@ window.CONSENT_CONFIG = {
       sedeFija: 'creas',
       correo: 'creasconecta@accionsalud.com.co',
       colorMarco: [59, 191, 193],
+      tituloPdf: ['CONSENTIMIENTO INFORMADO', 'CREAS CONECTA – USO DE DATOS PERSONALES'],
       tituloApp: 'Consentimiento informado — CREAS Conecta',
       leadApp: 'Uso de datos personales y hoja de vida. Complete los datos: la información debe coincidir con el documento de identidad.',
       campos: {
@@ -436,9 +437,6 @@ window.CONSENT_CONFIG = {
         TITULO: 'Anexos',
         NOTA: 'Certificados, diplomas, actas de grado, constancias laborales. Sus páginas se anexan al final de la hoja de vida.'
       },
-
-      /* Recuadro de la foto en el encabezado, en mm. Sin foto queda vacío,
-         igual que en el formato impreso. */
       foto: { ancho: 27, alto: 34 },
       MODALIDADES: [
         { id: 'TC',  label: 'TC — Técnica' },
@@ -485,6 +483,32 @@ window.CONSENT_CONFIG = {
         { id: 'refrigerio', label: 'Refrigerio' }
       ]
     },
+    {
+      id: 'transporte_creas',
+      label: 'Apoyo voluntario de transporte',
+      descripcion: 'Constancia de aceptación — Hospital Día CREAS',
+      icono: 'ic-consent-transporte',
+      codigo: 'AS-SM-PROC-008',
+      version: '001',
+      vigenteHasta: 'AGO/2028',
+      logoPdfKey: 'LOGO_CREAS',
+      sedeFija: 'creas',
+      colorMarco: [59, 191, 193],
+      tituloPdf: ['CONSTANCIA DE ACEPTACIÓN PARA APOYO', 'VOLUNTARIO DE TRANSPORTE'],
+      tituloApp: 'Constancia de aceptación para apoyo voluntario de transporte',
+      leadApp: 'Apoyo de transporte del programa Hospital Día — CREAS. Complete los datos: la información debe coincidir con el documento de identidad.',
+      revisor: 'Revisó: Javier Urzola / Área Jurídica',
+      campos: {
+        lugarExpedicion: false,
+        menores:         false,
+        soporte:         false,
+        finalidad:       false
+      },
+      bloqueFirma: {
+        paciente:    'paciente',
+        acompanante: 'paciente'
+      }
+    },
   ],
 
   ORGANIZACIONES: [
@@ -496,7 +520,7 @@ window.CONSENT_CONFIG = {
       logoPdfKey: 'LOGO_ACCION_SALUD',
       razonSocial: 'la IPS Acción salud para todos SAS',
       encabezadoDefault: 'ACCION SALUD PARA TODOS',
-      consentimientos: ['imagen', 'datos', 'creas_conecta', 'certificado_atencion', 'hoja_vida'],
+      consentimientos: ['imagen', 'datos', 'certificado_atencion'],
       sedes: [
         { id: 'creas', nombre: 'SEDE CREAS - CENTRO DE REHABILITACIÓN',
           encabezado: 'ACCION SALUD PARA TODOS - SEDE CREAS', ciudad: 'Montería', departamento: 'Córdoba' },
@@ -508,6 +532,25 @@ window.CONSENT_CONFIG = {
           encabezado: 'ACCION SALUD PARA TODOS IPS - SEDE MONTELIBANO', ciudad: 'Montelíbano', departamento: 'Córdoba' },
         { id: 'sede_sahagun', nombre: 'ACCION SALUD PARA TODOS IPS SEDE SAHAGÚN',
           encabezado: 'ACCION SALUD PARA TODOS IPS - SEDE SAHAGÚN', ciudad: 'Sahagún', departamento: 'Córdoba' }
+      ]
+    },
+    {
+      /* CREAS es un programa de Acción Salud, no otra empresa: por eso
+         comparte razón social y solo cambia el logo, la sede y la lista de
+         documentos. Vive en su propia página porque ya tiene tres formatos
+         propios y mezclarlos con los de la sede principal alargaba la lista
+         sin necesidad. */
+      id: 'creas',
+      nombre: 'CREAS — Centro de Rehabilitación',
+      subtitulo: 'Programa Hospital Día de Acción Salud',
+      logoAppKey: 'LOGO_CREAS',
+      logoPdfKey: 'LOGO_CREAS',
+      razonSocial: 'la IPS Acción salud para todos SAS',
+      encabezadoDefault: 'ACCION SALUD PARA TODOS - SEDE CREAS',
+      consentimientos: ['imagen', 'creas_conecta', 'transporte_creas', 'hoja_vida'],
+      sedes: [
+        { id: 'creas', nombre: 'SEDE CREAS - CENTRO DE REHABILITACIÓN',
+          encabezado: 'ACCION SALUD PARA TODOS - SEDE CREAS', ciudad: 'Montería', departamento: 'Córdoba' }
       ]
     },
     {
@@ -555,7 +598,8 @@ window.CONSENT_CONFIG = {
         pacientes_sf:         true,
         certificado_atencion: true,
         hoja_vida:            true,
-        alimentacion_sf:      true
+        alimentacion_sf:      true,
+        transporte_creas:     true
       }
     },
     {
@@ -585,7 +629,9 @@ window.CONSENT_CONFIG = {
         pacientes_sf:         false,
         certificado_atencion: true,
         hoja_vida:            false,
-        alimentacion_sf:      false
+        alimentacion_sf:      false,
+        // El acompañante sí puede aceptar el apoyo de transporte.
+        transporte_creas:     true
       },
 
       porFormato: {
@@ -674,6 +720,11 @@ window.CONSENT_CONFIG = {
  window.CONSENT_CONFIG.CONSENTIMIENTOS].forEach(function (lista) {
   (lista || []).forEach(function (x) {
     if (x.logoPdfKey) x.logoPdf = window.CONSENT_CONFIG[x.logoPdfKey];
+    /* Con logoAppKey el logo del encabezado sale del mismo base64 que usa el
+       PDF, así no hay que subir otra imagen ni duplicar los bytes. */
+    if (x.logoAppKey && window.CONSENT_CONFIG[x.logoAppKey]) {
+      x.logoApp = 'data:image/jpeg;base64,' + window.CONSENT_CONFIG[x.logoAppKey].b64;
+    }
     if (x.bandaKey)   x.banda   = window.CONSENT_CONFIG[x.bandaKey];
   });
 });
