@@ -17,8 +17,8 @@ var CONFIG = {
      Para habilitar un buzón nuevo hay que ponerlo en los dos lados: aquí y
      en el `correo` del formato dentro de consentimiento-config.js. */
   DESTINATARIOS_PERMITIDOS: [
-    'accion.saludac@gmail.com'
-    // , 'correo.de.creas@ejemplo.com'
+    'accion.saludac@gmail.com',
+    'creasconecta@accionsalud.com.co'
   ],
  
   ASUNTO_PREFIJO: '[Consentimiento ASI-FOR-018]',

@@ -51,21 +51,7 @@
   </symbol>
 
   <!-- Categorías de documento -->
-  <symbol id="ic-cat-consentimiento" viewBox="0 0 96 96">
-    <rect x="14" y="10" width="52" height="68" rx="6" fill="#eaf4fb"/>
-    <path d="M24 26h32M24 37h32M24 48h22" stroke="#7fb8dd" stroke-width="3.4" stroke-linecap="round"/>
-    <path d="M24 59h16" stroke="#b9d9ee" stroke-width="3.4" stroke-linecap="round"/>
-    <path d="M40 74c8-12 16-18 24-14 5-8 13-8 18 0-2 14-10 22-20 26-9-3-16-7-22-12z" fill="#5fc4cb"/>
-    <path d="M48 76c6-6 12-9 18-9" stroke="#eaf4fb" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-  </symbol>
 
-  <symbol id="ic-cat-certificado" viewBox="0 0 96 96">
-    <rect x="10" y="16" width="66" height="50" rx="6" fill="#eaf4fb"/>
-    <path d="M20 30h30M20 40h30M20 50h20" stroke="#7fb8dd" stroke-width="3.4" stroke-linecap="round"/>
-    <circle cx="66" cy="50" r="17" fill="#3b7ddb"/>
-    <path d="M58 50l5.5 5.5L74 45" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-    <path d="M57 64l-3 18 12-6 12 6-3-18" fill="#5fc4cb"/>
-  </symbol>
 
   <!-- Tipos de consentimiento -->
   <symbol id="ic-consent-imagen" viewBox="0 0 96 96">
@@ -107,6 +93,22 @@
     <path d="M72 38l10 12M76 61l-9 7M67 66l3-28" stroke="#9fd8f2" stroke-width="2.6" stroke-linecap="round"/>
   </symbol>
 
+  <!-- Certificado de alimentación: bandeja con cubiertos -->
+  <symbol id="ic-consent-alimentacion" viewBox="0 0 96 96">
+    <rect x="14" y="60" width="68" height="10" rx="4" fill="#3b7ddb"/>
+    <path d="M22 60a26 26 0 0 1 52 0z" fill="#eaf4fb" stroke="#3b7ddb" stroke-width="3.2" stroke-linejoin="round"/>
+    <circle cx="48" cy="44" r="9" fill="#7fb8dd"/>
+    <path d="M24 20v14M30 20v14M27 34v12" stroke="#3b7ddb" stroke-width="3.2" stroke-linecap="round"/>
+    <path d="M69 20c4 0 5 6 3 10-1 2-3 3-3 3v13" stroke="#3b7ddb" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  </symbol>
+  <!-- Hoja de vida: carpeta con una persona y renglones -->
+  <symbol id="ic-consent-hoja-vida" viewBox="0 0 96 96">
+    <rect x="20" y="12" width="52" height="68" rx="7" fill="#eaf4fb"/>
+    <path d="M38 12h16v8a4 4 0 0 1-4 4h-8a4 4 0 0 1-4-4v-8z" fill="#3b7ddb"/>
+    <circle cx="39" cy="42" r="7.5" fill="#3b7ddb"/>
+    <path d="M28.5 61a10.5 10.5 0 0 1 21 0z" fill="#3b7ddb"/>
+    <path d="M56 38h10M56 47h10M31 70h34" stroke="#7fb8dd" stroke-width="3.4" stroke-linecap="round"/>
+  </symbol>
   <symbol id="ic-consent-datos" viewBox="0 0 96 96">
     <rect x="16" y="10" width="52" height="68" rx="7" fill="#eaf4fb"/>
     <path d="M26 26h32M26 36h32M26 46h20" stroke="#7fb8dd" stroke-width="3.4" stroke-linecap="round"/>
@@ -125,37 +127,26 @@
 
   <section class="asc-setup" id="ascSetup">
     <div class="asc-setup-wrap">
-      <div class="asc-setup-step" id="stepPersona">
+      <!-- Paso 1: qué documento. La entidad la fija la página; quién firma
+           depende del documento, así que va después. -->
+      <div class="asc-setup-step" id="stepConsent">
         <p class="asc-setup-eyebrow">Paso 1</p>
-        <h2 class="asc-setup-title">Consentimientos a firmar</h2>
-        <p class="asc-setup-lead">Se requiere firmar los siguientes consentimientos para proceder con la realización del procedimiento. Indique quién va a firmar.</p>
-        <div class="asc-choices asc-choices--4" id="personaChoices"></div>
-      </div>
-
-      <!-- Paso 3: categoría del documento -->
-      <div class="asc-setup-step asc-hidden" id="stepCategoria">
-        <p class="asc-setup-eyebrow">Paso 2</p>
-        <h2 class="asc-setup-title">¿Qué tipo de documento va a firmar?</h2>
-        <p class="asc-setup-lead">Elija primero la clase de documento; en el siguiente paso escoge el formato.</p>
-        <div class="asc-choices asc-choices--2" id="categoriaChoices"></div>
-        <div class="asc-setup-foot">
-          <button class="asc-btn asc-btn--link" type="button" id="btnVolverPersona">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-            Cambiar quién firma
-          </button>
-        </div>
-      </div>
-
-      <!-- Paso 4: formato concreto dentro de la categoría -->
-      <div class="asc-setup-step asc-hidden" id="stepConsent">
-        <p class="asc-setup-eyebrow">Paso 3</p>
-        <h2 class="asc-setup-title" id="tituloPasoConsent">¿Qué consentimiento va a firmar?</h2>
+        <h2 class="asc-setup-title" id="tituloPasoConsent">¿Qué documento va a generar?</h2>
         <p class="asc-setup-lead" id="leadPasoConsent">Cada formato pide datos distintos.</p>
         <div class="asc-choices asc-choices--2" id="consentChoices"></div>
+      </div>
+
+      <!-- Paso 2: quién. Solo los roles que el documento admite; si admite
+           uno solo, este paso se salta. -->
+      <div class="asc-setup-step asc-hidden" id="stepPersona">
+        <p class="asc-setup-eyebrow">Paso 2</p>
+        <h2 class="asc-setup-title" id="tituloPasoPersona">¿Quién va a firmar?</h2>
+        <p class="asc-setup-lead" id="leadPasoPersona">Los rótulos del documento se ajustan a quien firma.</p>
+        <div class="asc-choices asc-choices--4" id="personaChoices"></div>
         <div class="asc-setup-foot">
-          <button class="asc-btn asc-btn--link" type="button" id="btnVolverCategoria">
+          <button class="asc-btn asc-btn--link" type="button" id="btnVolverConsent">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-            <span id="btnVolverCategoriaLabel">Cambiar tipo de documento</span>
+            Cambiar documento
           </button>
         </div>
       </div>
@@ -268,6 +259,209 @@
               <input class="asc-input" id="pacienteDoc" name="pacienteDoc" type="text"
                      inputmode="numeric" maxlength="15" placeholder="Ej. 123456789"/>
             </div>
+          </div>
+        </section>
+
+        <!-- Servicio de alimentación (certificado de San Felipe) -->
+        <section class="asc-card asc-hidden" id="cardAlimentacion">
+          <h3 class="asc-card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h1v11M7 2v7M11 2v7"/><path d="M19 2c-1.5 2-2 4-2 6 0 1.5.7 2.5 1.5 3V22"/></svg>
+            Servicio de alimentación
+          </h3>
+
+          <div class="asc-fields asc-fields--2">
+            <div class="asc-field">
+              <label class="asc-label" for="fechaAlimentacion">Fecha de la entrega</label>
+              <input class="asc-input" id="fechaAlimentacion" name="fechaAlimentacion" type="date"/>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="raciones">Cantidad de raciones</label>
+              <input class="asc-input" id="raciones" name="raciones" type="text"
+                     inputmode="numeric" maxlength="4" placeholder="Ej. 2"/>
+            </div>
+          </div>
+
+          <div class="asc-hv-bloque">
+            <p class="asc-hv-titulo">Tipo de alimentación</p>
+            <p class="asc-note" style="margin-bottom:14px">Marque todas las que se entregaron.</p>
+            <div class="asc-checks" id="tiposAlimentacion"></div>
+            <p class="asc-error-msg asc-hidden" id="alimentacionError"></p>
+          </div>
+
+          <div class="asc-hv-bloque">
+            <div class="asc-field">
+              <label class="asc-label" for="usuarioAlimentacion">Usuario que registra</label>
+              <input class="asc-input" id="usuarioAlimentacion" name="usuarioAlimentacion" type="text"
+                     maxlength="80" placeholder="Nombre de quien entrega"/>
+              <p class="asc-note">Se recuerda mientras dure la sesión.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========  HOJA DE VIDA  ==========================================
+             Las tres tarjetas siguientes solo aparecen con campos.hojaVida.
+             La formación y la experiencia son filas que se agregan a mano:
+             lo que no se agregue no sale en el documento.
+             ================================================================= -->
+
+        <section class="asc-card asc-hidden" id="cardHvPersonales">
+          <h3 class="asc-card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2.5"/><path d="M5.5 16.5a3.5 3.5 0 0 1 7 0M15 9h4M15 13h4"/></svg>
+            Datos personales
+          </h3>
+          <p class="asc-note" style="margin-bottom:20px">Los nombres y el documento se toman del bloque anterior.</p>
+
+          <div class="asc-fields asc-fields--2">
+            <div class="asc-field">
+              <label class="asc-label" for="hvSexo">Sexo</label>
+              <select class="asc-select" id="hvSexo" name="hvSexo">
+                <option disabled selected value="">Seleccione…</option>
+                <option value="F">F — Femenino</option>
+                <option value="M">M — Masculino</option>
+              </select>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="hvNacionalidad">Nacionalidad</label>
+              <select class="asc-select" id="hvNacionalidad" name="hvNacionalidad">
+                <option value="COL">Colombiana</option>
+                <option value="EXT">Extranjera</option>
+              </select>
+            </div>
+            <div class="asc-field asc-field--full asc-hidden" id="campoHvPaisNac">
+              <label class="asc-label" for="hvPaisNacionalidad">¿De qué país?</label>
+              <input class="asc-input" id="hvPaisNacionalidad" name="hvPaisNacionalidad" type="text" maxlength="40" placeholder="País"/>
+            </div>
+          </div>
+
+          <!-- Libreta militar: solo se pide a los hombres. -->
+          <div class="asc-hv-bloque asc-hidden" id="bloqueLibreta">
+            <p class="asc-hv-titulo">Libreta militar</p>
+            <div class="asc-fields asc-fields--3">
+              <div class="asc-field">
+                <label class="asc-label" for="hvLibretaClase">Clase</label>
+                <select class="asc-select" id="hvLibretaClase" name="hvLibretaClase">
+                  <option value="">No aplica / no tiene</option>
+                  <option value="1">Primera clase</option>
+                  <option value="2">Segunda clase</option>
+                </select>
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="hvLibretaNumero">Número</label>
+                <input class="asc-input" id="hvLibretaNumero" name="hvLibretaNumero" type="text" maxlength="20" placeholder="Número"/>
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="hvLibretaDm">D.M.</label>
+                <input class="asc-input" id="hvLibretaDm" name="hvLibretaDm" type="text" maxlength="10" placeholder="Distrito militar"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="asc-hv-bloque">
+            <p class="asc-hv-titulo">Fecha y lugar de nacimiento</p>
+            <div class="asc-fields asc-fields--2">
+              <div class="asc-field">
+                <label class="asc-label" for="hvFechaNac">Fecha de nacimiento</label>
+                <input class="asc-input" id="hvFechaNac" name="hvFechaNac" type="date"/>
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="hvPaisNac">País</label>
+                <input class="asc-input" id="hvPaisNac" name="hvPaisNac" type="text" maxlength="40" placeholder="País" value="Colombia"/>
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="hvDeptoNac">Departamento</label>
+                <input class="asc-input" id="hvDeptoNac" name="hvDeptoNac" type="text" maxlength="40" placeholder="Departamento"/>
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="hvMunicipioNac">Municipio</label>
+                <input class="asc-input" id="hvMunicipioNac" name="hvMunicipioNac" type="text" maxlength="40" placeholder="Municipio"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="asc-hv-bloque">
+            <p class="asc-hv-titulo">Dirección de correspondencia</p>
+            <div class="asc-fields asc-fields--2">
+              <div class="asc-field asc-field--full">
+                <label class="asc-label" for="hvDireccion">Dirección</label>
+                <input class="asc-input" id="hvDireccion" name="hvDireccion" type="text" maxlength="90" placeholder="Dirección de residencia"/>
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="hvPaisCorr">País</label>
+                <input class="asc-input" id="hvPaisCorr" name="hvPaisCorr" type="text" maxlength="40" placeholder="País" value="Colombia"/>
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="hvDeptoCorr">Departamento</label>
+                <input class="asc-input" id="hvDeptoCorr" name="hvDeptoCorr" type="text" maxlength="40" placeholder="Departamento"/>
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="hvMunicipioCorr">Municipio</label>
+                <input class="asc-input" id="hvMunicipioCorr" name="hvMunicipioCorr" type="text" maxlength="40" placeholder="Municipio"/>
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="hvTelefono">Teléfono</label>
+                <input class="asc-input" id="hvTelefono" name="hvTelefono" type="text" inputmode="tel" maxlength="30" placeholder="Teléfono"/>
+              </div>
+              <div class="asc-field asc-field--full">
+                <label class="asc-label" for="hvEmail">Correo electrónico</label>
+                <input class="asc-input" id="hvEmail" name="hvEmail" type="email" maxlength="80" placeholder="correo@ejemplo.com"/>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="asc-card asc-hidden" id="cardHvFormacion">
+          <h3 class="asc-card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 9L12 5 2 9l10 4 10-4z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>
+            Formación académica
+          </h3>
+
+          <div class="asc-hv-bloque" style="margin-top:0;padding-top:0;border-top:0">
+            <p class="asc-hv-titulo">Educación básica y media</p>
+            <div class="asc-fields asc-fields--3">
+              <div class="asc-field">
+                <label class="asc-label" for="hvGrado">Último grado aprobado</label>
+                <select class="asc-select" id="hvGrado" name="hvGrado">
+                  <option value="">No registra</option>
+                </select>
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="hvTituloObtenido">Título obtenido <span class="asc-opcional">(opcional)</span></label>
+                <input class="asc-input" id="hvTituloObtenido" name="hvTituloObtenido" type="text" maxlength="60" placeholder="Ej. Bachiller académico"/>
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="hvFechaGrado">Fecha de grado <span class="asc-opcional">(opcional)</span></label>
+                <input class="asc-input" id="hvFechaGrado" name="hvFechaGrado" type="month"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="asc-hv-bloque">
+            <p class="asc-hv-titulo">Educación superior (pregrado y postgrado)</p>
+            <p class="asc-note" style="margin-bottom:16px">En orden cronológico. Agregue solo los estudios que tenga; si no agrega ninguno, la sección no sale en el documento.</p>
+            <div class="asc-minors-list" id="hvEstudiosList"></div>
+            <div class="asc-minors-foot" style="margin-top:18px">
+              <button class="asc-btn asc-btn--link" type="button" id="hvAddEstudio">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                Agregar estudio
+              </button>
+              <p class="asc-note" id="hvEstudiosCounter" aria-live="polite"></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="asc-card asc-hidden" id="cardHvExperiencia">
+          <h3 class="asc-card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            Experiencia laboral
+          </h3>
+          <p class="asc-note" style="margin-bottom:16px">En orden cronológico, empezando por el empleo actual. Agregue solo los que tenga; si no agrega ninguno, la sección no sale en el documento.</p>
+          <div class="asc-minors-list" id="hvEmpleosList"></div>
+          <div class="asc-minors-foot" style="margin-top:18px">
+            <button class="asc-btn asc-btn--link" type="button" id="hvAddEmpleo">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              Agregar empleo
+            </button>
+            <p class="asc-note" id="hvEmpleosCounter" aria-live="polite"></p>
           </div>
         </section>
 
@@ -400,26 +594,52 @@
               <input type="hidden" id="fechaISO" name="fechaISO"/>
             </div>
 
-            <div class="asc-field">
-              <label class="asc-label" for="sede">Sede</label>
-              <select class="asc-select" id="sede" name="sede" required></select>
+            <!-- Foto del encabezado. Solo en los formatos que la usan
+                 (campos.foto). Es una sola: cargar otra reemplaza la anterior. -->
+            <div class="asc-field asc-hidden" id="campoFoto">
+              <span class="asc-label">Foto <span class="asc-opcional">(opcional)</span></span>
+              <div class="asc-foto">
+                <div class="asc-foto-caja" id="fotoCaja">
+                  <img class="asc-foto-previa asc-hidden" id="fotoPrevia" alt="Foto cargada"/>
+                  <span class="asc-foto-vacia" id="fotoVacia">Sin foto</span>
+                </div>
+                <div class="asc-foto-lado">
+                  <p class="asc-note">Tipo documento, 3&times;4. Si no la carga, el recuadro del encabezado queda en blanco.</p>
+                  <div class="asc-foto-btns">
+                    <label class="asc-btn asc-btn--ghost asc-btn--sm" for="fotoInput">Elegir foto</label>
+                    <button class="asc-btn asc-btn--link asc-hidden" type="button" id="fotoQuitar">Quitar</button>
+                  </div>
+                  <input class="asc-oculto" id="fotoInput" name="foto" type="file"
+                         accept="image/jpeg,image/png,image/webp" aria-label="Seleccionar foto"/>
+                </div>
+              </div>
+              <p class="asc-error-msg asc-hidden" id="fotoError"></p>
             </div>
 
-            <div class="asc-fields asc-fields--2" style="gap:14px">
+            <!-- La hoja de vida no se registra en una sede: este bloque se
+                 oculta con campos.sede = false. -->
+            <div id="bloqueSede">
               <div class="asc-field">
-                <label class="asc-label" for="ciudad">Ciudad</label>
-                <input class="asc-input" id="ciudad" name="ciudad" type="text" placeholder="Ciudad" required disabled/>
+                <label class="asc-label" for="sede">Sede</label>
+                <select class="asc-select" id="sede" name="sede" required></select>
               </div>
-              <div class="asc-field">
-                <label class="asc-label" for="departamento">Departamento</label>
-                <input class="asc-input" id="departamento" name="departamento" type="text" placeholder="Departamento" required disabled/>
+
+              <div class="asc-fields asc-fields--2" style="gap:14px;margin-top:18px">
+                <div class="asc-field">
+                  <label class="asc-label" for="ciudad">Ciudad</label>
+                  <input class="asc-input" id="ciudad" name="ciudad" type="text" placeholder="Ciudad" required disabled/>
+                </div>
+                <div class="asc-field">
+                  <label class="asc-label" for="departamento">Departamento</label>
+                  <input class="asc-input" id="departamento" name="departamento" type="text" placeholder="Departamento" required disabled/>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        <!-- Firma -->
-        <section class="asc-card asc-card--tight asc-sign-card">
+        <!-- Firma. La hoja de vida no se firma: campos.firma = false la oculta. -->
+        <section class="asc-card asc-card--tight asc-sign-card" id="cardFirma">
           <h3 class="asc-card-title" style="margin-bottom:8px">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
             Firma

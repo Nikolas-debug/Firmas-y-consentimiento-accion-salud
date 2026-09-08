@@ -149,6 +149,8 @@
 @media (min-width: 980px) {
   .asc-choices--3 { grid-template-columns: repeat(3, 1fr); }
   .asc-choices--4 { grid-template-columns: repeat(4, 1fr); }
+  /* Con cinco, 3+2 se ve mejor que 4+1 con una tarjeta suelta al final. */
+  .asc-choices--5 { grid-template-columns: repeat(3, 1fr); }
 }
 
 /* Tarjeta seleccionable. Es un <button> para que responda al teclado. */
@@ -294,6 +296,7 @@
 }
 @media (min-width: 700px) {
   .asc-fields--2 { grid-template-columns: 1fr 1fr; }
+  .asc-fields--3 { grid-template-columns: repeat(3, 1fr); }
   .asc-field--full { grid-column: 1 / -1; }
 }
 
@@ -489,6 +492,113 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+/* ---------- Casillas de varias opciones -------------------------------- */
+/* Se usan cuando la respuesta puede ser más de una (tipo de alimentación):
+   ahí un select no sirve. */
+.asc-checks {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 620px) {
+  .asc-checks { grid-template-columns: repeat(2, 1fr); }
+}
+
+.asc .asc-check {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 15px;
+  font-size: 15.5px;
+  color: var(--asc-text);
+  background: var(--asc-surface);
+  border: 1px solid var(--asc-border);
+  border-radius: var(--asc-radius);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.asc .asc-check:hover { border-color: var(--asc-primary); }
+
+.asc-check input {
+  width: 19px;
+  height: 19px;
+  flex: none;
+  accent-color: var(--asc-primary);
+  cursor: pointer;
+}
+
+/* Marcada, se nota de un vistazo cuál se entregó. */
+.asc-check--on {
+  background: var(--asc-surface-2);
+  border-color: var(--asc-primary);
+  font-weight: 600;
+}
+
+/* ---------- Foto del encabezado --------------------------------------- */
+/* El input real se esconde y lo dispara el <label>, que sí se puede
+   estilizar como botón. */
+.asc-oculto {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.asc-foto { display: flex; align-items: flex-start; gap: 14px; }
+
+/* Proporción 3x4, la misma del recuadro del PDF. */
+.asc-foto-caja {
+  flex: none;
+  width: 78px;
+  height: 104px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--asc-surface-2);
+  border: 2px dashed var(--asc-border);
+  border-radius: 6px;
+}
+.asc-foto-caja--llena { border-style: solid; border-color: var(--asc-primary); }
+
+.asc-foto-previa { width: 100%; height: 100%; object-fit: cover; }
+
+.asc .asc-foto-vacia {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--asc-text-muted);
+  text-align: center;
+  padding: 0 6px;
+}
+
+.asc-foto-lado { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.asc-foto-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+.asc .asc-btn--sm { height: 36px; padding: 0 14px; font-size: 14px; }
+
+/* ---------- Hoja de vida ---------------------------------------------- */
+/* Subdivisiones dentro de una tarjeta: separan "libreta militar", "fecha y
+   lugar de nacimiento" y "dirección" sin abrir una tarjeta para cada una. */
+.asc-hv-bloque {
+  padding-top: 22px;
+  margin-top: 22px;
+  border-top: 1px solid var(--asc-border);
+}
+
+.asc .asc-hv-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--asc-primary);
+  margin-bottom: 16px;
 }
 
 /* ---------- Botones --------------------------------------------------- */

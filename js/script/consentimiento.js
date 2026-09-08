@@ -1,15 +1,6 @@
 
 (function () {
   'use strict';
-
-  /* ---------------------------------------------------------------------
-     ARRANQUE
-     Si uno de los archivos del módulo no llega completo (subida a medias,
-     caché que mezcla versiones, un 404), el resto no puede funcionar. Antes
-     eso dejaba la pantalla del paso 1 en blanco, sin tarjetas y sin ninguna
-     pista. El aviso lo pinta ascFalloCarga(), que vive en el HTML: así
-     también aparece cuando el que no llegó completo fue este mismo archivo.
-     --------------------------------------------------------------------- */
   const avisarFalla = (detalle) => {
     if (typeof window.ascFalloCarga === 'function') window.ascFalloCarga(detalle);
     else console.error('[Consentimiento] ' + detalle);
@@ -47,33 +38,16 @@
     return CONSENTS.filter((c) => permitidos.indexOf(c.id) !== -1);
   };
 
-  const CATEGORIAS = CFG.CATEGORIAS || [];
-  let CATEGORIA = null;
 
-  /* El rol manda sobre los formatos: TIPOS_PERSONA[].formatos dice cuáles
-     puede firmar. Lo que no esté listado se permite, así que agregar un
-     formato nuevo no obliga a tocar todos los roles. */
-  const rolPermite = (c) => {
-    const permisos = PERSONA && PERSONA.formatos;
+
+  const rolesDelConsent = (c) => TIPOS_PERSONA.filter((t) => {
+    const permisos = t.formatos;
     if (!permisos) return true;
-    return permisos[c.id] !== false;
-  };
+    return permisos[(c || CONSENT || {}).id] !== false;
+  });
 
-  // Los formatos que quedan tras filtrar por entidad y por quién firma.
-  const consentsDisponibles = () => consentsDeOrg().filter(rolPermite);
-
-  /* Solo se ofrecen las categorías que queden con al menos un formato, en el
-     orden del catálogo. Si el rol se queda sin ninguno de una categoría, esa
-     categoría desaparece del paso 2. */
-  const categoriasDeOrg = () => {
-    const usadas = consentsDisponibles().map((c) => c.categoria);
-    return CATEGORIAS.filter((cat) => usadas.indexOf(cat.id) !== -1);
-  };
-
-  const consentsDeCategoria = () => {
-    if (!CATEGORIA) return consentsDisponibles();
-    return consentsDisponibles().filter((c) => c.categoria === CATEGORIA.id);
-  };
+  const consentsDisponibles = () =>
+    consentsDeOrg().filter((c) => rolesDelConsent(c).length > 0);
 
   /* Lo que el rol cambia para el formato elegido: campos extra y rótulos
      propios del PDF. */
@@ -468,7 +442,10 @@
     () => (CONSENT && CONSENT.PROCEDIMIENTOS) || [], 'procedimientos');
 
   // Responsables de la institución: se busca por nombre.
-  const RESPONSABLES = () => (CONSENT && CONSENT.RESPONSABLES) || [];
+  /* La lista vive en la entidad, porque la comparten sus formatos. Un
+     formato puede traer la suya y entonces manda esa. */
+  const RESPONSABLES = () => (CONSENT && CONSENT.RESPONSABLES) ||
+                             (ORG && ORG.RESPONSABLES) || [];
   const buscaResponsable = crearBuscador($('responsable'),
     () => RESPONSABLES().map((r) => r.nombre), 'responsables');
 
@@ -562,6 +539,393 @@
     refreshMinors();
     entry.querySelector('input').focus();
   });
+
+  const hvCfg = () => CONSENTS.filter((c) => c.id === 'hoja_vida')[0] || {};
+  const MODALIDADES  = () => hvCfg().MODALIDADES || [];
+  const MAX_ESTUDIOS = () => hvCfg().MAX_ESTUDIOS || 6;
+  const MAX_EMPLEOS  = () => hvCfg().MAX_EMPLEOS  || 5;
+
+  const cardHvPersonales  = $('cardHvPersonales');
+  const cardHvFormacion   = $('cardHvFormacion');
+  const cardHvExperiencia = $('cardHvExperiencia');
+  const hvEstudiosList    = $('hvEstudiosList');
+  const hvEmpleosList     = $('hvEmpleosList');
+
+  // Los grados 1 a 11 del último grado aprobado.
+  (function poblarGrados() {
+    const sel = $('hvGrado');
+    for (let i = 1; i <= 11; i++) {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = i + 'º';
+      sel.appendChild(o);
+    }
+  })();
+
+
+  function aplicarSexo() {
+    const esHombre = $('hvSexo').value === 'M';
+    $('bloqueLibreta').classList.toggle('asc-hidden', !esHombre);
+    if (!esHombre) {
+      $('hvLibretaClase').value = '';
+      ['hvLibretaNumero', 'hvLibretaDm'].forEach((id) => {
+        const el = $(id); el.value = ''; clearError(el);
+      });
+    }
+  }
+  $('hvSexo').addEventListener('change', aplicarSexo);
+
+  function aplicarNacionalidad() {
+    const ext = $('hvNacionalidad').value === 'EXT';
+    $('campoHvPaisNac').classList.toggle('asc-hidden', !ext);
+    if (!ext) { $('hvPaisNacionalidad').value = ''; clearError($('hvPaisNacionalidad')); }
+  }
+  $('hvNacionalidad').addEventListener('change', aplicarNacionalidad);
+
+
+  function listaRepetible(cont, boton, contador, opciones) {
+    const filas = () => Array.from(cont.querySelectorAll('.asc-minor'));
+
+    function crear() {
+      const fila = document.createElement('div');
+      fila.className = 'asc-minor';
+      fila.innerHTML =
+        '<button type="button" class="asc-btn-x asc-minor-remove" aria-label="' +
+          opciones.quitar + '">' +
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
+        '</button>' +
+        '<p class="asc-minor-title"></p>' + opciones.campos();
+      fila.querySelector('.asc-minor-remove')
+          .addEventListener('click', () => { fila.remove(); refrescar(); });
+      fila.querySelectorAll('input').forEach(bindLiveClear);
+      if (opciones.alCrear) opciones.alCrear(fila);
+      return fila;
+    }
+
+    function refrescar() {
+      const lista = filas();
+      lista.forEach((fila, i) => {
+        fila.querySelector('.asc-minor-title').textContent = opciones.titulo(i);
+        fila.querySelectorAll('[data-field]').forEach((campo) => {
+          const id = opciones.prefijo + '_' + campo.dataset.field + '_' + (i + 1);
+          campo.id = id;
+          campo.name = opciones.prefijo + '[' + i + '][' + campo.dataset.field + ']';
+          const et = campo.parentElement.querySelector('label');
+          if (et) et.setAttribute('for', id);
+        });
+      });
+      const tope = lista.length >= opciones.max();
+      boton.disabled = tope;
+      contador.textContent = lista.length
+        ? lista.length + ' de ' + opciones.max() + (tope ? ' — límite alcanzado' : '')
+        : opciones.vacio;
+    }
+
+    boton.addEventListener('click', () => {
+      if (filas().length >= opciones.max()) return;
+      const fila = crear();
+      cont.appendChild(fila);
+      refrescar();
+      const primero = fila.querySelector('input, select');
+      if (primero) primero.focus();
+    });
+
+    return {
+      filas: filas,
+      refrescar: refrescar,
+      limpiar: () => { cont.innerHTML = ''; refrescar(); }
+    };
+  }
+
+  const campo = (ancho, etiqueta, campoId, extra) =>
+    '<div class="asc-field' + (ancho ? ' asc-field--full' : '') + '">' +
+      '<label class="asc-label">' + etiqueta + '</label>' +
+      '<input class="asc-input" type="text" data-field="' + campoId + '" ' +
+        (extra || '') + '/>' +
+    '</div>';
+
+  const hvEstudios = listaRepetible(
+    hvEstudiosList, $('hvAddEstudio'), $('hvEstudiosCounter'), {
+      prefijo: 'hvEstudio',
+      quitar: 'Quitar estudio',
+      max: MAX_ESTUDIOS,
+      vacio: 'Sin estudios superiores registrados',
+      titulo: (i) => 'ESTUDIO ' + (i + 1),
+      campos: () =>
+        '<div class="asc-fields asc-fields--2">' +
+          '<div class="asc-field">' +
+            '<label class="asc-label">Modalidad académica</label>' +
+            '<select class="asc-select" data-field="modalidad">' +
+              MODALIDADES().map((m) =>
+                '<option value="' + m.id + '">' + m.label + '</option>').join('') +
+            '</select>' +
+          '</div>' +
+          campo(false, 'Semestres aprobados', 'semestres',
+                'inputmode="numeric" maxlength="2" placeholder="Ej. 10"') +
+          campo(true, 'Nombre de los estudios', 'estudios',
+                'maxlength="70" placeholder="Ej. Fisioterapia"') +
+          '<div class="asc-field">' +
+            '<label class="asc-label">¿Graduado?</label>' +
+            '<select class="asc-select" data-field="graduado">' +
+              '<option value="SI">Sí</option><option value="NO">No</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="asc-field">' +
+            '<label class="asc-label">Terminación</label>' +
+            '<input class="asc-input" type="month" data-field="terminacion"/>' +
+          '</div>' +
+          campo(true, 'Número de tarjeta profesional <span class="asc-opcional">(opcional)</span>',
+                'tarjeta', 'maxlength="30" placeholder="Si la ley la prevé"') +
+        '</div>',
+      alCrear: (fila) =>
+        filtrarEntrada(fila.querySelector('[data-field="semestres"]'), NO_DIGITOS)
+    });
+
+  const hvEmpleos = listaRepetible(
+    hvEmpleosList, $('hvAddEmpleo'), $('hvEmpleosCounter'), {
+      prefijo: 'hvEmpleo',
+      quitar: 'Quitar empleo',
+      max: MAX_EMPLEOS,
+      vacio: 'Sin experiencia registrada',
+      // El primero es el empleo vigente; el resto, anteriores.
+      titulo: (i) => i === 0 ? 'EMPLEO ACTUAL O CONTRATO VIGENTE'
+                             : 'EMPLEO O CONTRATO ANTERIOR ' + i,
+      campos: () =>
+        '<div class="asc-fields asc-fields--2">' +
+          campo(true, 'Empresa o entidad', 'empresa', 'maxlength="70" placeholder="Nombre de la empresa"') +
+          '<div class="asc-field">' +
+            '<label class="asc-label">Naturaleza</label>' +
+            '<select class="asc-select" data-field="naturaleza">' +
+              '<option value="PRIVADA">Privada</option>' +
+              '<option value="PUBLICA">Pública</option>' +
+            '</select>' +
+          '</div>' +
+          campo(false, 'País', 'pais', 'maxlength="40" placeholder="País" value="Colombia"') +
+          campo(false, 'Departamento', 'depto', 'maxlength="40" placeholder="Departamento"') +
+          campo(false, 'Municipio', 'municipio', 'maxlength="40" placeholder="Municipio"') +
+          campo(false, 'Teléfonos', 'telefonos', 'inputmode="tel" maxlength="30" placeholder="Teléfonos"') +
+          campo(false, 'Correo de la entidad <span class="asc-opcional">(opcional)</span>',
+                'correo', 'maxlength="70" placeholder="correo@empresa.com"') +
+          '<div class="asc-field">' +
+            '<label class="asc-label">Fecha de ingreso</label>' +
+            '<input class="asc-input" type="date" data-field="ingreso"/>' +
+          '</div>' +
+          '<div class="asc-field">' +
+            '<label class="asc-label">Fecha de retiro <span class="asc-opcional">(en blanco si sigue)</span></label>' +
+            '<input class="asc-input" type="date" data-field="retiro"/>' +
+          '</div>' +
+          campo(true, 'Cargo o contrato', 'cargo', 'maxlength="70" placeholder="Cargo desempeñado"') +
+          campo(false, 'Dependencia <span class="asc-opcional">(opcional)</span>',
+                'dependencia', 'maxlength="50" placeholder="Dependencia"') +
+          campo(false, 'Dirección <span class="asc-opcional">(opcional)</span>',
+                'direccion', 'maxlength="60" placeholder="Dirección"') +
+        '</div>'
+    });
+
+  function leerHojaVida(fail) {
+    const v = (id) => $(id).value.trim();
+
+    if (!$('hvSexo').value) fail($('hvSexo'), 'Indique el sexo.');
+    if (!v('hvFechaNac'))   fail($('hvFechaNac'), 'Indique la fecha de nacimiento.');
+    if (!v('hvMunicipioNac')) fail($('hvMunicipioNac'), 'Indique el municipio de nacimiento.');
+    if (!v('hvDireccion'))  fail($('hvDireccion'), 'Indique la dirección de correspondencia.');
+    if (!v('hvTelefono'))   fail($('hvTelefono'), 'Indique un teléfono.');
+
+    const correo = v('hvEmail');
+    if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(correo)) {
+      fail($('hvEmail'), 'El correo no parece válido.');
+    }
+    if ($('hvNacionalidad').value === 'EXT' && !v('hvPaisNacionalidad')) {
+      fail($('hvPaisNacionalidad'), 'Indique el país de la nacionalidad.');
+    }
+
+    const esHombre = $('hvSexo').value === 'M';
+
+    const estudios = [];
+    hvEstudios.filas().forEach((fila) => {
+      const g = (n) => (fila.querySelector('[data-field="' + n + '"]').value || '').trim();
+      // Una fila sin el nombre del estudio no aporta nada: se descarta.
+      if (!g('estudios')) return;
+      estudios.push({
+        modalidad:   g('modalidad'),
+        semestres:   g('semestres'),
+        graduado:    g('graduado'),
+        estudios:    tituloCase(g('estudios')),
+        terminacion: g('terminacion'),
+        tarjeta:     g('tarjeta')
+      });
+    });
+
+    const empleos = [];
+    hvEmpleos.filas().forEach((fila) => {
+      const g = (n) => (fila.querySelector('[data-field="' + n + '"]').value || '').trim();
+      if (!g('empresa')) return;   // igual que arriba
+      empleos.push({
+        empresa:     tituloCase(g('empresa')),
+        naturaleza:  g('naturaleza'),
+        pais:        tituloCase(g('pais')),
+        depto:       tituloCase(g('depto')),
+        municipio:   tituloCase(g('municipio')),
+        correo:      g('correo'),
+        telefonos:   g('telefonos'),
+        ingreso:     g('ingreso'),
+        retiro:      g('retiro'),
+        cargo:       tituloCase(g('cargo')),
+        dependencia: tituloCase(g('dependencia')),
+        direccion:   g('direccion')
+      });
+    });
+
+    return {
+      sexo: $('hvSexo').value,
+      nacionalidad: $('hvNacionalidad').value,
+      paisNacionalidad: tituloCase(v('hvPaisNacionalidad')),
+      // A las mujeres no se les pide, así que no viaja ni se imprime.
+      libreta: esHombre && $('hvLibretaClase').value ? {
+        clase:  $('hvLibretaClase').value,
+        numero: v('hvLibretaNumero'),
+        dm:     v('hvLibretaDm')
+      } : null,
+      fechaNac: v('hvFechaNac'),
+      paisNac: tituloCase(v('hvPaisNac')),
+      deptoNac: tituloCase(v('hvDeptoNac')),
+      municipioNac: tituloCase(v('hvMunicipioNac')),
+      direccion: v('hvDireccion'),
+      paisCorr: tituloCase(v('hvPaisCorr')),
+      deptoCorr: tituloCase(v('hvDeptoCorr')),
+      municipioCorr: tituloCase(v('hvMunicipioCorr')),
+      telefono: v('hvTelefono'),
+      email: correo,
+      grado: $('hvGrado').value,
+      tituloObtenido: tituloCase(v('hvTituloObtenido')),
+      fechaGrado: v('hvFechaGrado'),
+      estudios: estudios,
+      empleos: empleos
+    };
+  }
+
+  /* =======================================================================
+     FOTO DEL ENCABEZADO
+     Una sola imagen. El escritor de PDF solo admite JPEG (DCTDecode), así
+     que sea cual sea el formato que suba la persona se redibuja en un canvas
+     y se exporta como JPEG. De paso se recorta a la proporción del recuadro
+     para que la cara no salga estirada.
+     ======================================================================= */
+  const FOTO_MAX_MB = 12;
+  const fotoInput  = $('fotoInput');
+  const fotoCaja   = $('fotoCaja');
+  const fotoPrevia = $('fotoPrevia');
+  const fotoVacia  = $('fotoVacia');
+  const fotoQuitar = $('fotoQuitar');
+  const fotoError  = $('fotoError');
+  let foto = null;   // { b64, w, h, nombre }
+
+  const fotoCfg = () => (CONSENT && CONSENT.foto) || { ancho: 27, alto: 34 };
+
+  function pintarFoto() {
+    const hay = !!foto;
+    fotoCaja.classList.toggle('asc-foto-caja--llena', hay);
+    fotoPrevia.classList.toggle('asc-hidden', !hay);
+    fotoVacia.classList.toggle('asc-hidden', hay);
+    fotoQuitar.classList.toggle('asc-hidden', !hay);
+    if (hay) fotoPrevia.src = 'data:image/jpeg;base64,' + foto.b64;
+    else fotoPrevia.removeAttribute('src');
+  }
+
+  function errorFoto(msg) {
+    fotoError.textContent = msg;
+    fotoError.classList.toggle('asc-hidden', !msg);
+  }
+
+  /* Recorta al centro con la proporción del recuadro y escala a un tamaño
+     razonable para impresión (unos 300 ppp sobre 27 mm). */
+  function prepararFoto(img) {
+    const cfg = fotoCfg();
+    const razon = cfg.ancho / cfg.alto;
+    let sw = img.naturalWidth, sh = img.naturalHeight;
+    let sx = 0, sy = 0;
+    if (sw / sh > razon) { const nw = sh * razon; sx = (sw - nw) / 2; sw = nw; }
+    else { const nh = sw / razon; sy = (sh - nh) / 2; sh = nh; }
+
+    const anchoPx = Math.min(640, Math.round(cfg.ancho / 25.4 * 300));
+    const lienzo = document.createElement('canvas');
+    lienzo.width  = anchoPx;
+    lienzo.height = Math.round(anchoPx / razon);
+    const ctx = lienzo.getContext('2d');
+    // Fondo blanco: un PNG con transparencia saldría negro al pasar a JPEG.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, lienzo.width, lienzo.height);
+    return {
+      b64: lienzo.toDataURL('image/jpeg', 0.9).split(',')[1],
+      w: lienzo.width,
+      h: lienzo.height
+    };
+  }
+
+  fotoInput.addEventListener('change', () => {
+    const file = fotoInput.files && fotoInput.files[0];
+    fotoInput.value = '';          // permite volver a elegir el mismo archivo
+    if (!file) return;
+    errorFoto('');
+
+    if (file.size > FOTO_MAX_MB * 1024 * 1024) {
+      errorFoto('La foto pesa más de ' + FOTO_MAX_MB + ' MB. Use una más liviana.');
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        foto = Object.assign(prepararFoto(img), { nombre: file.name });
+        pintarFoto();
+      } catch (e) {
+        console.error('[Consentimiento] Foto:', e);
+        errorFoto('No se pudo procesar la foto. Intente con un JPG o un PNG.');
+      }
+      URL.revokeObjectURL(url);
+    };
+    /* Un HEIC de iPhone no lo decodifica el navegador: cae aquí. */
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      errorFoto('No se pudo leer la imagen. Debe ser JPG, PNG o WEBP ' +
+                '(las fotos HEIC del iPhone hay que convertirlas antes).');
+    };
+    img.src = url;
+  });
+
+  fotoQuitar.addEventListener('click', () => {
+    foto = null;
+    errorFoto('');
+    pintarFoto();
+  });
+
+  function limpiarFoto() {
+    foto = null;
+    fotoInput.value = '';
+    errorFoto('');
+    pintarFoto();
+  }
+
+  pintarFoto();
+
+  function limpiarHojaVida() {
+    ['hvPaisNacionalidad', 'hvLibretaNumero', 'hvLibretaDm', 'hvFechaNac',
+     'hvDeptoNac', 'hvMunicipioNac', 'hvDireccion', 'hvDeptoCorr',
+     'hvMunicipioCorr', 'hvTelefono', 'hvEmail', 'hvTituloObtenido',
+     'hvFechaGrado'].forEach((id) => { const el = $(id); el.value = ''; clearError(el); });
+    $('hvPaisNac').value = 'Colombia';
+    $('hvPaisCorr').value = 'Colombia';
+    ['hvSexo', 'hvGrado', 'hvLibretaClase'].forEach((id) => {
+      const el = $(id); el.value = ''; clearError(el);
+    });
+    $('hvNacionalidad').value = 'COL';
+    aplicarSexo();
+    aplicarNacionalidad();
+    hvEstudios.limpiar();
+    hvEmpleos.limpiar();
+  }
 
   const FCFG = Object.assign({
     GROSOR: 2.0, USAR_PRESION: true,
@@ -820,7 +1184,84 @@
 
   /* Bloque de firma del formulario: vista previa + botón. Guardar en la
      pantalla grande ya confirma; aquí no hay un segundo paso. */
-  function crearFirma(sufijo, etiquetaPorDefecto) {
+  /* =======================================================================
+     SERVICIO DE ALIMENTACIÓN (certificado de San Felipe)
+     El tipo va en casillas y no en un select porque en una misma entrega
+     puede haber más de uno: cena y refrigerio, desayuno y almuerzo…
+     ======================================================================= */
+  const cardAlimentacion = $('cardAlimentacion');
+  const tiposAlimCont    = $('tiposAlimentacion');
+  const alimError        = $('alimentacionError');
+  const inpRaciones      = $('raciones');
+  const inpUsuarioAlim   = $('usuarioAlimentacion');
+
+  const TIPOS_ALIM = () => (CONSENT && CONSENT.TIPOS_ALIMENTACION) || [];
+
+  function poblarTiposAlimentacion() {
+    const marcados = tiposAlimentacionMarcados().map((t) => t.id);
+    tiposAlimCont.innerHTML = '';
+    TIPOS_ALIM().forEach((t) => {
+      const et = document.createElement('label');
+      et.className = 'asc-check';
+      et.innerHTML = '<input type="checkbox" name="tipoAlimentacion" value="' + t.id +
+                     '" data-label="' + t.label + '"/><span>' + t.label + '</span>';
+      const casilla = et.querySelector('input');
+      casilla.checked = marcados.indexOf(t.id) !== -1;
+      et.classList.toggle('asc-check--on', casilla.checked);
+      casilla.addEventListener('change', () => {
+        et.classList.toggle('asc-check--on', casilla.checked);
+        if (casilla.checked) alimError.classList.add('asc-hidden');
+      });
+      tiposAlimCont.appendChild(et);
+    });
+  }
+
+  function tiposAlimentacionMarcados() {
+    return Array.from(tiposAlimCont.querySelectorAll('input:checked'))
+      .map((c) => ({ id: c.value, label: c.dataset.label }));
+  }
+
+  function limpiarAlimentacion() {
+    tiposAlimCont.querySelectorAll('input').forEach((c) => {
+      c.checked = false;
+      c.parentElement.classList.remove('asc-check--on');
+    });
+    alimError.classList.add('asc-hidden');
+    inpRaciones.value = '';
+    clearError(inpRaciones);
+    $('fechaAlimentacion').value = '';
+    clearError($('fechaAlimentacion'));
+  }
+
+  filtrarEntrada(inpRaciones, NO_DIGITOS);
+
+  /* Mismo trato que el usuario del certificado de atención: se recuerda
+     mientras dure la sesión. */
+  inpUsuarioAlim.value = usuarioRecordado();
+  inpUsuarioAlim.addEventListener('change',
+    () => recordarUsuario(inpUsuarioAlim.value.trim()));
+
+  /* La firma del responsable de la institución se guarda en la sesión: es la
+     misma persona firmando lo mismo toda la jornada, y volver a trazarla en
+     cada documento es trabajo repetido. Se borra al pulsar "Borrar", al
+     cerrar la pestaña, o al limpiar la selección. */
+  const CLAVE_FIRMA = 'asc_firma_responsable';
+  function recordarFirma(f) {
+    try {
+      if (f) window.sessionStorage.setItem(CLAVE_FIRMA, JSON.stringify(f));
+      else window.sessionStorage.removeItem(CLAVE_FIRMA);
+    } catch (e) { /* sin memoria, o llena: se sigue sin recordar */ }
+  }
+  function firmaRecordada() {
+    try {
+      const cruda = window.sessionStorage.getItem(CLAVE_FIRMA);
+      if (!cruda) return null;
+      const f = JSON.parse(cruda);
+      return (f && f.png && f.jpeg && f.jpeg.b64) ? f : null;
+    } catch (e) { return null; }
+  }
+
+  function crearFirma(sufijo, etiquetaPorDefecto, recordar) {
     const caja    = $('firmaCaja' + sufijo);
     const previa  = $('firmaPrevia' + sufijo);
     const vacia   = $('firmaVacia' + sufijo);
@@ -845,14 +1286,20 @@
       etiqueta: btn.dataset.etiqueta || etiquetaPorDefecto,
       recibir: (capturada) => {
         firma = capturada;
+        if (recordar) recordarFirma(firma);
         sigError.classList.add('asc-hidden');
         pintar();
       }
     };
 
     btn.addEventListener('click', () => abrirModalFirma(panel));
-    btnBorrar.addEventListener('click', () => { firma = null; pintar(); });
+    btnBorrar.addEventListener('click', () => {
+      firma = null;
+      if (recordar) recordarFirma(null);   // "Borrar" también la olvida
+      pintar();
+    });
 
+    if (recordar) firma = firmaRecordada();
     pintar();
 
     return {
@@ -861,14 +1308,26 @@
       error: sigError,
       hint: $('signatureHint' + sufijo),
       tieneTrazos: () => !!firma,
-      limpiar: () => { firma = null; sigError.classList.add('asc-hidden'); pintar(); },
+      /* Limpiar el formulario NO borra una firma recordada: el punto es que
+         sobreviva de un documento al siguiente. Se recupera de la sesión. */
+      limpiar: () => {
+        firma = recordar ? firmaRecordada() : null;
+        sigError.classList.add('asc-hidden');
+        pintar();
+      },
+      olvidar: () => {
+        firma = null;
+        if (recordar) recordarFirma(null);
+        sigError.classList.add('asc-hidden');
+        pintar();
+      },
       jpeg: () => (firma ? firma.jpeg : null),
       redimensionar: () => {}
     };
   }
 
-  const firmaPaciente    = crearFirma('', 'Firma del paciente');
-  const firmaResponsable = crearFirma('2', 'Firma del responsable de la institución');
+  const firmaPaciente    = crearFirma('', 'Firma del paciente', false);
+  const firmaResponsable = crearFirma('2', 'Firma del responsable de la institución', true);
   const FIRMAS = [firmaPaciente, firmaResponsable];
 
   const limpiarFirmas = () => FIRMAS.forEach((f) => f.limpiar());
@@ -1730,13 +2189,434 @@
     return doc.build();
   }
 
+  const M_HV = {
+    X0: 12, X1: 203.9,      // márgenes útiles en carta (215.9 mm de ancho)
+    FILA: 6.4,              // alto de una fila de tabla
+    PIE: 264                 // debajo de aquí se pasa de página
+  };
+  /* Componentes de 0 a 255, como en el resto del módulo. */
+  const C_HV = {
+    texto:  [26, 26, 30],
+    marco:  [0, 0, 0],
+    fondo:  [229, 241, 245],   // el celeste de los encabezados del formato
+    tenue:  [108, 115, 128],
+    blanco: [255, 255, 255]
+  };
+
+  const MESES_HV = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
+                    'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+
+  // 'aaaa-mm-dd' -> {d,m,a}; sin pasar por Date, que corre un día en UTC.
+  function partesFecha(v) {
+    const m = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(v || '');
+    return m ? { d: m[3] || '', m: m[2], a: m[1] } : null;
+  }
+  function fechaCortaHV(v) {
+    const p = partesFecha(v);
+    return p ? (p.d ? p.d + '/' : '') + p.m + '/' + p.a : '';
+  }
+  function mesAnioHV(v) {
+    const p = partesFecha(v);
+    return p ? MESES_HV[parseInt(p.m, 10) - 1] + '/' + p.a : '';
+  }
+
+  function generarPDFHojaVida(d) {
+    const hoja = d.consent.hoja || { ancho: 215.9, alto: 279.4 };
+    const doc = new PDFDoc({ width: hoja.ancho, height: hoja.alto });
+    doc.addImage('ImEscudo', d.logo.b64, d.logo.w, d.logo.h);
+    if (d.foto) doc.addImage('ImFoto', d.foto.b64, d.foto.w, d.foto.h);
+    doc.addPage();
+
+    const hv = d.hojaVida || {};
+    const W = hoja.ancho, X0 = M_HV.X0, X1 = M_HV.X1, ANCHO = X1 - X0;
+    let y = 0;
+
+    /* ---------- Encabezado ---------- */
+    /* El encabezado es más alto que el del formato impreso para que quepa la
+       foto tipo documento a la derecha. El recuadro se dibuja siempre: sin
+       foto queda vacío, igual que el del original. */
+    const F = d.consent.foto || { ancho: 27, alto: 34 };
+    const CAB = { y: 10, alto: F.alto + 4 };
+    const FOTO_X = X1 - 3 - F.ancho;
+
+    function encabezado() {
+      doc.rect(X0, CAB.y, ANCHO, CAB.alto, { width: 1.1, rgb: C_HV.marco });
+
+      const lh = 20, lw = lh * d.logo.w / d.logo.h;
+      doc.image('ImEscudo', X0 + 10, CAB.y + (CAB.alto - lh) / 2, lw, lh);
+
+      // El texto se centra en el hueco entre el escudo y la foto.
+      const cx = (X0 + 10 + lw + FOTO_X) / 2;
+      const base = CAB.y + CAB.alto / 2 - 8;
+      doc.text('FORMATO ÚNICO', cx, base + 3.5, { size: 12, align: 'center', rgb: C_HV.texto });
+      doc.text('HOJA DE VIDA', cx, base + 10.5, { size: 17, bold: true, align: 'center', rgb: C_HV.texto });
+      doc.text('Persona Natural', cx, base + 15.6, { size: 10.5, align: 'center', rgb: C_HV.texto });
+      doc.text(d.consent.leyes || '', cx, base + 19.2, { size: 7.6, align: 'center', rgb: C_HV.texto });
+
+      const fy = CAB.y + (CAB.alto - F.alto) / 2;
+      doc.rect(FOTO_X, fy, F.ancho, F.alto, { width: 0.6, rgb: C_HV.marco });
+      if (d.foto) doc.image('ImFoto', FOTO_X, fy, F.ancho, F.alto);
+      else {
+        doc.text('FOTO', FOTO_X + F.ancho / 2, fy + F.alto / 2 + 1,
+                 { size: 6.5, align: 'center', rgb: C_HV.tenue, tracking: 0.8 });
+      }
+
+      y = CAB.y + CAB.alto + 6;
+    }
+
+    // Cabecera de sección: el óvalo negro numerado del formato oficial.
+    function seccion(numero, titulo) {
+      const h = 6.2;
+      doc.rect(X0, y, 8, h, { relleno: C_HV.marco, sinBorde: true });
+      doc.text(String(numero), X0 + 4, y + 4.4,
+               { size: 9.5, bold: true, align: 'center', rgb: C_HV.blanco });
+      doc.rect(X0 + 9, y, 62, h, { relleno: C_HV.marco, sinBorde: true });
+      doc.text(titulo, X0 + 40, y + 4.3,
+               { size: 8.6, bold: true, align: 'center', rgb: C_HV.blanco, tracking: 0.4 });
+      y += h + 3.4;
+    }
+
+    /* Una fila con celdas. celdas = [{ancho, etiqueta, valor}]; el ancho es
+       una proporción del ancho útil. */
+    function fila(celdas, alto) {
+      const h = alto || M_HV.FILA * 1.55;
+      let x = X0;
+      const total = celdas.reduce((s, c) => s + c.ancho, 0);
+      celdas.forEach((c) => {
+        const w = ANCHO * c.ancho / total;
+        doc.rect(x, y, w, h, { width: 0.4, rgb: C_HV.marco });
+        if (c.etiqueta) {
+          doc.text(c.etiqueta, x + 1.6, y + 3.1,
+                   { size: 6.2, italic: true, rgb: C_HV.tenue });
+        }
+        if (c.valor) {
+          doc.text(recortar(String(c.valor), w - 3.2, 8.4), x + 1.6, y + h - 2.2,
+                   { size: 8.4, rgb: C_HV.texto });
+        }
+        x += w;
+      });
+      y += h;
+    }
+
+    // Corta lo que no quepa en la celda, con puntos suspensivos.
+    function recortar(txt, anchoMM, size) {
+      if (doc.widthOf(txt, size, false) <= anchoMM) return txt;
+      let t = txt;
+      while (t.length > 1 && doc.widthOf(t + '…', size, false) > anchoMM) {
+        t = t.slice(0, -1);
+      }
+      return t + '…';
+    }
+
+    // Barra celeste de subtítulo dentro de una sección.
+    function subtitulo(txt) {
+      doc.rect(X0, y, ANCHO, 5, { relleno: C_HV.fondo, width: 0.4, rgb: C_HV.marco });
+      doc.text(txt, W / 2, y + 3.5,
+               { size: 7.4, italic: true, align: 'center', rgb: C_HV.texto });
+      y += 5;
+    }
+
+    /* Salta de página cuando lo que viene no cabe. Es lo que permite que el
+       documento crezca con la experiencia en vez de truncarla. */
+    function espacio(alto) {
+      if (y + alto <= M_HV.PIE) return;
+      pie();
+      doc.addPage();
+      encabezado();
+    }
+
+    function pie() {
+      doc.text(String(doc.pageCount()), X1, 272, { size: 8.5, align: 'right', rgb: C_HV.texto });
+    }
+
+    encabezado();
+
+    /* ---------- 1. Datos personales ---------- */
+    seccion(1, 'DATOS PERSONALES');
+
+    const ap = (d.apellidos || '').trim().split(/\s+/);
+    fila([
+      { ancho: 1, etiqueta: 'PRIMER APELLIDO', valor: ap[0] || '' },
+      { ancho: 1, etiqueta: 'SEGUNDO APELLIDO', valor: ap.slice(1).join(' ') },
+      { ancho: 1.2, etiqueta: 'NOMBRES', valor: d.soloNombres || '' }
+    ]);
+
+    const SIGLAS = { CC: 'C.C.', CE: 'C.E.', PA: 'PAS' };
+    fila([
+      { ancho: 2, etiqueta: 'DOCUMENTO DE IDENTIFICACIÓN',
+        valor: (SIGLAS[d.tipoDocId] || d.tipoDocId) + '  No. ' + d.numeroDoc },
+      { ancho: 0.7, etiqueta: 'SEXO', valor: hv.sexo === 'F' ? 'F' : 'M' },
+      { ancho: 1.3, etiqueta: 'NACIONALIDAD',
+        valor: hv.nacionalidad === 'EXT' ? 'EXTRANJERA' : 'COLOMBIANA' },
+      { ancho: 1, etiqueta: 'PAÍS',
+        valor: hv.nacionalidad === 'EXT' ? (hv.paisNacionalidad || '') : 'Colombia' }
+    ]);
+
+    /* La libreta militar solo aplica a los hombres: en una hoja de vida de
+       mujer la fila no se dibuja, no queda en blanco. */
+    if (hv.libreta) {
+      fila([
+        { ancho: 1.6, etiqueta: 'LIBRETA MILITAR',
+          valor: hv.libreta.clase === '1' ? 'Primera clase' : 'Segunda clase' },
+        { ancho: 1.6, etiqueta: 'NÚMERO', valor: hv.libreta.numero || '' },
+        { ancho: 1, etiqueta: 'D.M.', valor: hv.libreta.dm || '' }
+      ]);
+    }
+
+    const fn = partesFecha(hv.fechaNac) || { d: '', m: '', a: '' };
+    fila([
+      { ancho: 1, etiqueta: 'FECHA DE NACIMIENTO', valor: fechaCortaHV(hv.fechaNac) },
+      { ancho: 1, etiqueta: 'PAÍS DE NACIMIENTO', valor: hv.paisNac || '' },
+      { ancho: 1, etiqueta: 'DEPARTAMENTO', valor: hv.deptoNac || '' },
+      { ancho: 1, etiqueta: 'MUNICIPIO', valor: hv.municipioNac || '' }
+    ]);
+
+    fila([{ ancho: 1, etiqueta: 'DIRECCIÓN DE CORRESPONDENCIA', valor: hv.direccion || '' }]);
+    fila([
+      { ancho: 1, etiqueta: 'PAÍS', valor: hv.paisCorr || '' },
+      { ancho: 1, etiqueta: 'DEPTO', valor: hv.deptoCorr || '' },
+      { ancho: 1, etiqueta: 'MUNICIPIO', valor: hv.municipioCorr || '' }
+    ]);
+    fila([
+      { ancho: 1, etiqueta: 'TELÉFONO', valor: hv.telefono || '' },
+      { ancho: 2, etiqueta: 'EMAIL', valor: hv.email || '' }
+    ]);
+
+    /* ---------- 2. Formación académica ---------- */
+    const hayBasica = hv.grado || hv.tituloObtenido || hv.fechaGrado;
+    if (hayBasica || (hv.estudios || []).length) {
+      y += 5;
+      espacio(30);
+      seccion(2, 'FORMACIÓN ACADÉMICA');
+
+      if (hayBasica) {
+        subtitulo('EDUCACIÓN BÁSICA Y MEDIA');
+        fila([
+          { ancho: 1, etiqueta: 'ÚLTIMO GRADO APROBADO',
+            valor: hv.grado ? hv.grado + 'º' : '' },
+          { ancho: 1.6, etiqueta: 'TÍTULO OBTENIDO', valor: hv.tituloObtenido || '' },
+          { ancho: 1, etiqueta: 'FECHA DE GRADO', valor: mesAnioHV(hv.fechaGrado) }
+        ]);
+      }
+
+      if ((hv.estudios || []).length) {
+        y += 3;
+        espacio(22);
+        subtitulo('EDUCACIÓN SUPERIOR (PREGRADO Y POSTGRADO)');
+
+        const COLS = [
+          { ancho: 0.75, t: 'MODALIDAD' },
+          { ancho: 0.6,  t: 'SEMESTRES' },
+          { ancho: 0.55, t: 'GRADUADO' },
+          { ancho: 2.2,  t: 'NOMBRE DE LOS ESTUDIOS' },
+          { ancho: 0.7,  t: 'TERMINACIÓN' },
+          { ancho: 0.9,  t: 'No. TARJETA' }
+        ];
+        const total = COLS.reduce((s, c) => s + c.ancho, 0);
+
+        // Cabecera de la tabla
+        let x = X0;
+        COLS.forEach((c) => {
+          const w = ANCHO * c.ancho / total;
+          doc.rect(x, y, w, 5.4, { relleno: C_HV.fondo, width: 0.4, rgb: C_HV.marco });
+          doc.text(c.t, x + w / 2, y + 3.7,
+                   { size: 5.9, bold: true, align: 'center', rgb: C_HV.texto });
+          x += w;
+        });
+        y += 5.4;
+
+        hv.estudios.forEach((e) => {
+          espacio(M_HV.FILA);
+          const vals = [e.modalidad, e.semestres, e.graduado === 'SI' ? 'SÍ' : 'NO',
+                        e.estudios, mesAnioHV(e.terminacion), e.tarjeta || ''];
+          let cx = X0;
+          COLS.forEach((c, i) => {
+            const w = ANCHO * c.ancho / total;
+            doc.rect(cx, y, w, M_HV.FILA, { width: 0.4, rgb: C_HV.marco });
+            const centrado = (i !== 3);
+            doc.text(recortar(String(vals[i] || ''), w - 2.4, 7.8),
+                     centrado ? cx + w / 2 : cx + 1.4, y + M_HV.FILA - 2.1,
+                     { size: 7.8, align: centrado ? 'center' : undefined, rgb: C_HV.texto });
+            cx += w;
+          });
+          y += M_HV.FILA;
+        });
+      }
+    }
+
+    /* ---------- 3. Experiencia laboral ---------- */
+    if ((hv.empleos || []).length) {
+      y += 5;
+      espacio(40);
+      seccion(3, 'EXPERIENCIA LABORAL');
+
+      hv.empleos.forEach((e, i) => {
+        // Un empleo son cuatro filas: o entra entero o pasa a la otra página.
+        espacio(5 + M_HV.FILA * 1.55 * 4);
+        subtitulo(i === 0 ? 'EMPLEO ACTUAL O CONTRATO VIGENTE'
+                          : 'EMPLEO O CONTRATO ANTERIOR');
+        fila([
+          { ancho: 2, etiqueta: 'EMPRESA O ENTIDAD', valor: e.empresa },
+          { ancho: 0.8, etiqueta: 'NATURALEZA',
+            valor: e.naturaleza === 'PUBLICA' ? 'PÚBLICA' : 'PRIVADA' },
+          { ancho: 0.9, etiqueta: 'PAÍS', valor: e.pais }
+        ]);
+        fila([
+          { ancho: 1, etiqueta: 'DEPARTAMENTO', valor: e.depto },
+          { ancho: 1, etiqueta: 'MUNICIPIO', valor: e.municipio },
+          { ancho: 1.3, etiqueta: 'CORREO ELECTRÓNICO ENTIDAD', valor: e.correo }
+        ]);
+        fila([
+          { ancho: 1.1, etiqueta: 'TELÉFONOS', valor: e.telefonos },
+          { ancho: 1, etiqueta: 'FECHA DE INGRESO', valor: fechaCortaHV(e.ingreso) },
+          // Sin fecha de retiro se entiende que sigue trabajando ahí.
+          { ancho: 1, etiqueta: 'FECHA DE RETIRO',
+            valor: e.retiro ? fechaCortaHV(e.retiro) : 'Actual' }
+        ]);
+        fila([
+          { ancho: 1.2, etiqueta: 'CARGO O CONTRATO', valor: e.cargo },
+          { ancho: 1, etiqueta: 'DEPENDENCIA', valor: e.dependencia },
+          { ancho: 1.1, etiqueta: 'DIRECCIÓN', valor: e.direccion }
+        ]);
+        y += 2.2;
+      });
+    }
+
+    doc.text('Documento generado el ' + d.generadaFecha + ' a las ' + d.generadaHora,
+             X0, Math.min(y + 7, 269), { size: 7, italic: true, rgb: C_HV.tenue });
+    pie();
+    return doc.build();
+  }
+
   // Cada consentimiento tiene su propio constructor de PDF.
+  /* =======================================================================
+     CERTIFICADO DE RECEPCIÓN DEL SERVICIO DE ALIMENTACIÓN (San Felipe)
+     Mismo esqueleto que el certificado de atención de Acción Salud, con dos
+     diferencias: el encabezado es la banda de San Felipe (la misma del
+     SP-ADM-RG-01) y quien firma es el responsable de la institución, no el
+     beneficiario.
+     ======================================================================= */
+  function generarPDFAlimentacion(d) {
+    const hoja = d.consent.hoja || { ancho: 215.9, alto: 279.4 };
+    const doc = new PDFDoc({ width: hoja.ancho, height: hoja.alto });
+    if (d.consent.banda) {
+      doc.addImage('ImBanda', d.consent.banda.b64, d.consent.banda.w, d.consent.banda.h);
+    }
+    if (d.firmaResponsable) {
+      doc.addImage('ImFirmaResp', d.firmaResponsable.b64,
+                   d.firmaResponsable.w, d.firmaResponsable.h);
+    }
+    doc.addPage();
+
+    const W = hoja.ancho, X0 = M_CERT.X0, X1 = M_CERT.X1;
+    const al = d.alimentacion || {};
+
+    /* ---------- Banda de la institución ---------- */
+    let yTope = 12;
+    if (d.consent.banda) {
+      const b = d.consent.banda;
+      const bw = M_SF.BANDA_W, bh = bw * b.h / b.w;
+      doc.image('ImBanda', M_SF.BANDA_X, 6, bw, bh);
+      yTope = 6 + bh + 6;
+    }
+
+    doc.line(0, yTope, W, yTope, { width: 0.5, rgb: C_CERT.azul });
+
+    /* El título es largo: si no cabe en una línea se parte en dos, en vez de
+       encogerlo hasta que no se lea. */
+    const titulo = d.consent.titulo || 'CERTIFICADO DE RECEPCIÓN DEL SERVICIO DE ALIMENTACIÓN';
+    let yTit = yTope + 6.9;
+    const opTit = { size: 12.5, bold: true, align: 'center',
+                    rgb: C_CERT.azulTexto, tracking: 0.4 };
+    if (doc.widthOf(titulo, opTit.size, true) <= X1 - X0) {
+      doc.text(titulo, W / 2, yTit, opTit);
+      yTit += 4.7;
+    } else {
+      const corte = titulo.lastIndexOf(' ', Math.floor(titulo.length * 0.6));
+      doc.text(titulo.slice(0, corte), W / 2, yTit, opTit);
+      doc.text(titulo.slice(corte + 1), W / 2, yTit + 5.6, opTit);
+      yTit += 10.3;
+    }
+    doc.line(0, yTit, W, yTit, { width: 0.9, rgb: C_CERT.azul });
+
+    let sede = d.sedeNombre || 'UNIDAD SAN FELIPE';
+
+    /* ---------- Declaración ---------- */
+    let y = doc.paragraph([
+      { s: 'Yo, ' }, { s: d.nombreCompleto },
+      { s: ', identificado(a) con ' + d.tipoDocId + ' - ' + d.numeroDoc +
+           ', certifico haber recibido a satisfacción el servicio de alimentación ' +
+           'suministrado por la institución en la sede ' },
+      { s: sede },
+      { s: ', dejando constancia de la recepción del servicio prestado.' }
+    ], X0, yTit + 8.1, X1 - X0, { size: 9.2, rgb: C_CERT.texto });
+
+    /* ---------- Tabla ---------- */
+    const filas = [
+      ['Fecha:',                fechaCortaHV(al.fecha)],
+      ['Servicio:',             d.consent.servicio || ''],
+      ['Tipo de alimentación:', (al.tipos || []).join(' / ')],
+      ['Cantidad:',             al.raciones ? al.raciones + (al.raciones === '1' ? ' ración' : ' raciones') : ''],
+      ['Usuario:',              al.usuario]
+    ];
+    let yf = Math.max(50.1, y + 2.2);
+    doc.line(0, yf, W, yf, { width: 0.35, rgb: C_CERT.sepFuerte });
+    filas.forEach((f, i) => {
+      const base = yf + M_CERT.FILA - 2.3;
+      doc.text(f[0], 6.5, base, { size: 8.6, bold: true, rgb: C_CERT.texto });
+      if (f[1]) doc.text(String(f[1]), M_CERT.VALOR + 8, base, { size: 8.6, rgb: C_CERT.texto });
+      yf += M_CERT.FILA;
+      const ultima = (i === filas.length - 1);
+      doc.line(0, yf, W, yf, { width: 0.35, rgb: ultima ? C_CERT.sepFuerte : C_CERT.sepSuave });
+    });
+
+    /* ---------- Firma del responsable ----------
+       El bloque de firma se ancla debajo de la tabla, no a una altura fija:
+       con la banda y un título de dos líneas la tabla baja bastante, y una
+       posición fija la pisaba. */
+    const yRegla = Math.max(120.6, yf + 26);
+    if (d.firmaResponsable) {
+      let fh = 17, fw = fh * d.firmaResponsable.w / d.firmaResponsable.h;
+      const maxW = 70;
+      if (fw > maxW) { fw = maxW; fh = fw * d.firmaResponsable.h / d.firmaResponsable.w; }
+      doc.image('ImFirmaResp', W / 2 - fw / 2, yRegla - fh - 4, fw, fh);
+    }
+    doc.line(X0, yRegla, X1, yRegla, { width: 0.55, rgb: C_CERT.texto });
+    doc.text('FIRMA DEL RESPONSABLE DE LA INSTITUCIÓN', W / 2, yRegla + 4.1,
+             { size: 8.6, align: 'center', rgb: C_CERT.gris, tracking: 0.5 });
+    if (d.responsable) {
+      doc.text('C.C. ' + d.responsable.documento + ' - ' + d.responsable.nombre,
+               W / 2, yRegla + 8.2, { size: 7.4, align: 'center', rgb: C_CERT.gris });
+    }
+
+    /* ---------- Recuadro de fecha de generación ---------- */
+    const cajaY = yRegla + 12.6, cajaH = 12.1;
+    doc.rect(0.5, cajaY, W - 1, cajaH,
+             { width: 0.35, rgb: C_CERT.sepFuerte, relleno: C_CERT.cajaFondo });
+    doc.text('FECHA DE GENERACIÓN', W / 2, cajaY + 3.6,
+             { size: 6.8, bold: true, align: 'center', rgb: C_CERT.azul, tracking: 0.8 });
+
+    const sep = '   |   ';
+    const anchoF = doc.widthOf(d.generadaFecha, 9.4, true);
+    const anchoS = doc.widthOf(sep, 9.4, true);
+    const anchoH = doc.widthOf(d.generadaHora, 9.4, true);
+    let xg = W / 2 - (anchoF + anchoS + anchoH) / 2;
+    const yg = cajaY + 8.9;
+    xg = doc.text(d.generadaFecha, xg, yg, { size: 9.4, bold: true, rgb: C_CERT.azulTexto });
+    xg = doc.text(sep,             xg, yg, { size: 9.4, bold: true, rgb: C_CERT.sepFuerte });
+    doc.text(d.generadaHora,       xg, yg, { size: 9.4, bold: true, rgb: C_CERT.verde });
+
+    return doc.build();
+  }
+
   const CONSTRUCTORES = {
     imagen: generarPDF,
     datos: generarPDF14,
     creas_conecta: generarPDF7,
     pacientes_sf: generarPDFSanFelipe,
-    certificado_atencion: generarPDFCertificado
+    certificado_atencion: generarPDFCertificado,
+    hoja_vida: generarPDFHojaVida,
+    alimentacion_sf: generarPDFAlimentacion
   };
 
   const form = $('consentForm');
@@ -1784,8 +2664,6 @@
       }
     }
 
-    /* Datos del paciente: los pide el rol, no el formato. Aparecen cuando
-       quien firma no es el propio paciente (acompañante en el certificado). */
     let pacienteAparte = null;
     if (pide('paciente')) {
       const pn = $('pacienteNombre'), pt = $('pacienteTipoDoc'), pd = $('pacienteDoc');
@@ -1840,9 +2718,52 @@
       if (!usuario.value.trim()) fail(usuario, 'Indique el usuario que registra.');
     }
 
-    if (!sede.value)                fail(sede, 'Seleccione una sede.');
-    if (!ciudad.value.trim())       fail(ciudad, 'Indique la ciudad.');
-    if (!departamento.value.trim()) fail(departamento, 'Indique el departamento.');
+    /* La hoja de vida no se registra en una sede, así que ahí no se exige. */
+    if (CONSENT.campos.sede !== false) {
+      if (!sede.value)                fail(sede, 'Seleccione una sede.');
+      if (!ciudad.value.trim())       fail(ciudad, 'Indique la ciudad.');
+      if (!departamento.value.trim()) fail(departamento, 'Indique el departamento.');
+    }
+
+    /* Hoja de vida. Solo se exige lo que el formato oficial marca como
+       identificación básica; la formación y la experiencia son opcionales
+       porque hay quien no tiene ninguna de las dos. */
+    let hojaVida = null;
+    if (pide('hojaVida')) hojaVida = leerHojaVida(fail);
+
+    /* Alimentación: al menos un tipo marcado, y una cantidad de raciones
+       mayor que cero. */
+    let alimentacion = null;
+    if (pide('alimentacion')) {
+      const fechaAl = $('fechaAlimentacion');
+      if (!fechaAl.value) fail(fechaAl, 'Indique la fecha de la entrega.');
+
+      const tipos = tiposAlimentacionMarcados();
+      if (!tipos.length) {
+        alimError.textContent = 'Marque al menos un tipo de alimentación.';
+        alimError.classList.remove('asc-hidden');
+        if (!primerError) primerError = tiposAlimCont;
+      } else {
+        alimError.classList.add('asc-hidden');
+      }
+
+      const rac = inpRaciones.value.trim();
+      if (!rac) fail(inpRaciones, 'Indique la cantidad de raciones.');
+      else if (!/^\d{1,4}$/.test(rac) || parseInt(rac, 10) < 1) {
+        fail(inpRaciones, 'Debe ser un número mayor que cero.');
+      }
+
+      if (!inpUsuarioAlim.value.trim()) {
+        fail(inpUsuarioAlim, 'Indique el usuario que registra.');
+      }
+
+      alimentacion = {
+        fecha: fechaAl.value,
+        tipos: tipos.map((t) => t.label),
+        raciones: rac,
+        usuario: titleCase(inpUsuarioAlim.value)
+      };
+    }
 
     const menores = [];
     if (toggleMinor.checked) {
@@ -1875,7 +2796,8 @@
       }
       return true;
     }
-    revisarFirma(firmaPaciente, 'La firma');
+    // La hoja de vida no se firma, así que ahí no se exige.
+    if (CONSENT.campos.firma !== false) revisarFirma(firmaPaciente, 'La firma');
 
     let responsable = null;
     if (pide('responsable')) {
@@ -1899,6 +2821,10 @@
     const f = new Date();
     return {
       nombreCompleto: titleCase(nombres.value + ' ' + apellidos.value),
+      /* La hoja de vida los pide separados (primer apellido, segundo
+         apellido, nombres), así que además del nombre completo viajan sueltos. */
+      soloNombres: titleCase(nombres.value),
+      apellidos: titleCase(apellidos.value),
       tipoDocId: tipoDoc.value,
       tipoDocLabel: (TIPOS_DOC.find((t) => t.id === tipoDoc.value) || {}).label,
       numeroDoc: num,
@@ -1951,7 +2877,10 @@
                   String(f.getMonth() + 1).padStart(2, '0') + '/' + f.getFullYear(),
       fechaISO: f.toISOString(),
       menores: menores,
-      firma: firmaPaciente.jpeg(),
+      hojaVida: hojaVida,
+      alimentacion: alimentacion,
+      foto: foto,
+      firma: CONSENT.campos.firma === false ? null : firmaPaciente.jpeg(),
       responsable: responsable,
       firmaResponsable: pide('responsable') ? firmaResponsable.jpeg() : null
     };
@@ -1992,6 +2921,9 @@
     buscaProcedimiento.limpiar();
     limpiarSoportes();
     limpiarFirmas();
+    limpiarHojaVida();
+    limpiarFoto();
+    limpiarAlimentacion();
     buscaResponsable.limpiar();
     refrescarFecha(); 
     form.querySelectorAll('.asc-error-msg:not([id])').forEach((p) => p.remove());
@@ -2145,15 +3077,22 @@
 
   const hayPdfLib = () => (typeof PDFLib !== 'undefined' && PDFLib && PDFLib.PDFDocument);
 
-  if (!SOP.ACTIVO) {
-    cardSoporte.classList.add('asc-hidden');
-  } else {
-    $('tituloSoporte').textContent = SOP.TITULO;
-    $('notaSoporte').textContent   = SOP.NOTA;
-    $('soporteHint').textContent   = 'PDF, JPG o PNG · hasta ' + SOP.MAX_ARCHIVOS +
-      (SOP.MAX_ARCHIVOS > 1 ? ' archivos' : ' archivo') +
-      (SOP.OBLIGATORIO ? ' · obligatorio' : ' · opcional');
+  /* Cada formato puede ajustar la tarjeta de adjuntos: el certificado pide
+     la copia del documento (tope 4) y la hoja de vida, certificados y
+     diplomas (tope 6). Lo que el formato no diga se hereda de SOPORTE. */
+  const sop = () => Object.assign({}, SOP, (CONSENT && CONSENT.soporte) || {});
+
+  function pintarSoporte() {
+    const c = sop();
+    $('tituloSoporte').textContent = c.TITULO;
+    $('notaSoporte').textContent   = c.NOTA;
+    $('soporteHint').textContent   = 'PDF, JPG o PNG · hasta ' + c.MAX_ARCHIVOS +
+      (c.MAX_ARCHIVOS > 1 ? ' archivos' : ' archivo') +
+      (c.OBLIGATORIO ? ' · obligatorio' : ' · opcional');
   }
+
+  if (!SOP.ACTIVO) cardSoporte.classList.add('asc-hidden');
+  else pintarSoporte();
 
   function tipoDeArchivo(file) {
     const n = String(file.name || '').toLowerCase();
@@ -2177,10 +3116,10 @@
     // Se procesan en serie: abrir un PDF grande bloquea menos así, y el
     // orden en que quedan adjuntos es el que eligió el usuario.
     return lista.reduce((cadena, file) => cadena.then(() => {
-      if (soportes.length >= SOP.MAX_ARCHIVOS) {
+      if (soportes.length >= sop().MAX_ARCHIVOS) {
         if (errores.indexOf('tope') === -1) {
           errores.push('tope');
-          errores.push('Solo se admiten ' + SOP.MAX_ARCHIVOS + ' archivos.');
+          errores.push('Solo se admiten ' + sop().MAX_ARCHIVOS + ' archivos.');
         }
         return;
       }
@@ -2260,7 +3199,7 @@
     });
 
     // Al llegar al tope se esconde la zona de carga: no hay nada que soltar.
-    soporteDrop.classList.toggle('asc-hidden', soportes.length >= SOP.MAX_ARCHIVOS);
+    soporteDrop.classList.toggle('asc-hidden', soportes.length >= sop().MAX_ARCHIVOS);
   }
 
   soporteInput.addEventListener('change', () => {
@@ -2325,7 +3264,7 @@
       return;
     }
 
-    if (SOP.ACTIVO && SOP.OBLIGATORIO && !soportes.length) {
+    if (SOP.ACTIVO && sop().OBLIGATORIO && !soportes.length) {
       soporteError.textContent = 'Adjunte la copia del documento de identidad.';
       soporteError.classList.remove('asc-hidden');
       soporteDrop.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2359,10 +3298,10 @@
 
     anexarSoportes(bytes)
       .then((completo) => {
-        const limite = SOP.MAX_MB * MB;
+        const limite = sop().MAX_MB * MB;
         if (completo.length > limite) {
           throw new Error('el documento final pesa ' + pesoLegible(completo.length) +
-            ' y el máximo son ' + SOP.MAX_MB + ' MB. Adjunte un escaneo más liviano ' +
+            ' y el máximo son ' + sop().MAX_MB + ' MB. Adjunte un escaneo más liviano ' +
             '(menor resolución, o en blanco y negro)');
         }
         continuarEnvio(completo, nombreArchivo, d, resumen);
@@ -2565,19 +3504,18 @@
   }
 
   const setup       = $('ascSetup');
-  const stepPersona = $('stepPersona');
   const stepConsent = $('stepConsent');
+  const stepPersona = $('stepPersona');
   const appLogo     = $('appLogo');
   const cardMenores = $('cardMenores');
-  const stepCategoria = $('stepCategoria');
-  const PASOS = [stepPersona, stepCategoria, stepConsent];
+  const PASOS = [stepConsent, stepPersona];
 
-  /* La entidad ya no se elige: la fija la página. La secuencia depende solo
-     de si esta entidad ofrece más de una categoría de documento. */
+  /* Primero el documento, después quién firma. El segundo paso se salta
+     cuando el documento admite un solo rol (la hoja de vida, por ejemplo,
+     solo la hace el paciente), así que el total depende del documento. */
   function pasosVisibles() {
-    const conCategoria = categoriasDeOrg().length > 1;
-    return conCategoria ? [stepPersona, stepCategoria, stepConsent]
-                        : [stepPersona, stepConsent];
+    const unSoloRol = CONSENT && rolesDelConsent(CONSENT).length <= 1;
+    return unSoloRol ? [stepConsent] : [stepConsent, stepPersona];
   }
 
   function tarjeta(art, nombre, descripcion) {
@@ -2593,54 +3531,33 @@
     return b;
   }
 
+  const consentChoices = $('consentChoices');
   const personaChoices = $('personaChoices');
 
-  /* Solo se ofrecen los roles que tengan al menos un formato disponible en
-     esta entidad: si a alguno se le apagan todos en TIPOS_PERSONA, deja de
-     aparecer en el paso 1. */
+  function poblarConsentimientos() {
+    consentChoices.innerHTML = '';
+    const lista = consentsDisponibles();
+    consentChoices.className = 'asc-choices asc-choices--' + Math.min(lista.length, 5);
+    lista.forEach((c) => {
+      const b = tarjeta('<svg viewBox="0 0 96 96"><use href="#' + c.icono + '"/></svg>',
+                        c.label, c.descripcion);
+      b.dataset.consent = c.id;
+      b.addEventListener('click', () => elegirConsent(c));
+      consentChoices.appendChild(b);
+    });
+  }
+
+  // Solo los roles que admite el documento ya elegido.
   function poblarPersonas() {
     personaChoices.innerHTML = '';
-    const antes = PERSONA;
-    const lista = TIPOS_PERSONA.filter((t) => {
-      PERSONA = t;
-      const hay = consentsDisponibles().length > 0;
-      PERSONA = antes;
-      return hay;
-    });
+    const lista = rolesDelConsent(CONSENT);
     personaChoices.className = 'asc-choices asc-choices--' + Math.min(lista.length, 4);
     lista.forEach((t) => {
       const b = tarjeta('<svg viewBox="0 0 96 96"><use href="#ic-' + t.id + '"/></svg>',
                         t.label, t.descripcion);
+      b.dataset.persona = t.id;
       b.addEventListener('click', () => elegirPersona(t));
       personaChoices.appendChild(b);
-    });
-  }
-
-  const consentChoices = $('consentChoices');
-
-  const categoriaChoices = $('categoriaChoices');
-
-  function poblarCategorias() {
-    categoriaChoices.innerHTML = '';
-    const lista = categoriasDeOrg();
-    categoriaChoices.className = 'asc-choices asc-choices--' + Math.min(lista.length, 4);
-    lista.forEach((cat) => {
-      const b = tarjeta('<svg viewBox="0 0 96 96"><use href="#' + cat.icono + '"/></svg>',
-                        cat.label, cat.descripcion);
-      b.addEventListener('click', () => elegirCategoria(cat));
-      categoriaChoices.appendChild(b);
-    });
-  }
-
-  function poblarConsentimientos() {
-    consentChoices.innerHTML = '';
-    const lista = consentsDeCategoria();
-    consentChoices.className = 'asc-choices asc-choices--' + Math.min(lista.length, 4);
-    lista.forEach((c) => {
-      const b = tarjeta('<svg viewBox="0 0 96 96"><use href="#' + c.icono + '"/></svg>',
-                        c.label, c.descripcion);
-      b.addEventListener('click', () => elegirConsent(c));
-      consentChoices.appendChild(b);
     });
   }
 
@@ -2653,49 +3570,36 @@
     $('chosenOrgLogo').src = o.logoApp;
     $('chosenOrg').textContent = o.nombre;
     poblarSedes();
-    poblarPersonas();
-    poblarCategorias();
-    numerarPasos();
-  }
-
-  function elegirPersona(t) {
-    PERSONA = t;
-    $('tituloDatos').textContent = t.tituloDatos;
-    $('chosenPersona').textContent = t.label;
-    $('chosenPersonaIcon').setAttribute('href', '#ic-' + t.id);
-    refreshMinors();
-
-    /* El rol decide qué formatos quedan, así que las categorías y la
-       numeración de los pasos se recalculan aquí. */
-    poblarCategorias();
-    numerarPasos();
-
-    // Con una sola categoría no hay nada que elegir: se salta ese paso.
-    const cats = categoriasDeOrg();
-    if (cats.length <= 1) { elegirCategoria(cats[0] || null); return; }
-    mostrarPaso(stepCategoria);
-  }
-
-  function elegirCategoria(cat) {
-    CATEGORIA = cat;
-    if (cat) {
-      $('tituloPasoConsent').textContent = cat.titulo || '¿Qué documento va a firmar?';
-      $('leadPasoConsent').textContent   = cat.lead || 'Cada formato pide datos distintos.';
-    }
-    // El botón de volver apunta al paso anterior real.
-    const hayCategoria = categoriasDeOrg().length > 1;
-    $('btnVolverCategoriaLabel').textContent =
-      hayCategoria ? 'Cambiar tipo de documento' : 'Cambiar quién firma';
     poblarConsentimientos();
-    mostrarPaso(stepConsent);
+    numerarPasos();
   }
 
+  /* Paso 1. Fijado el documento ya se sabe quiénes pueden firmarlo, así que
+     de aquí se decide si el paso 2 tiene sentido. */
   function elegirConsent(c) {
     CONSENT = c;
     $('chosenConsent').textContent = c.label;
     $('chosenConsentIcon').setAttribute('href', '#' + c.icono);
     $('tituloConsent').textContent = c.tituloApp;
     $('leadConsent').textContent   = c.leadApp;
+    numerarPasos();
+
+    const roles = rolesDelConsent(c);
+    if (roles.length <= 1) { elegirPersona(roles[0] || TIPOS_PERSONA[0]); return; }
+    poblarPersonas();
+    $('tituloPasoPersona').textContent = c.pregustaQuien || '¿Quién va a firmar?';
+    mostrarPaso(stepPersona);
+  }
+
+  // Paso 2 (o automático, si el documento admite un solo rol).
+  function elegirPersona(t) {
+    PERSONA = t;
+    // El formato puede renombrar el bloque: en la hoja de vida ese primer
+    // bloque es la identificación, y "Datos personales" es la sección 1.
+    $('tituloDatos').textContent = (CONSENT && CONSENT.tituloDatos) || t.tituloDatos;
+    $('chosenPersona').textContent = t.label;
+    $('chosenPersonaIcon').setAttribute('href', '#ic-' + t.id);
+    refreshMinors();
     aplicarCampos();
     abrirFormulario();
   }
@@ -2764,6 +3668,20 @@
       buscaProcedimiento.limpiar();
     }
 
+    /* Servicio de alimentación: las casillas se repueblan porque la lista
+       la define el formato. */
+    const verAlim = pide('alimentacion');
+    cardAlimentacion.classList.toggle('asc-hidden', !verAlim);
+    if (verAlim) {
+      poblarTiposAlimentacion();
+      if (!$('fechaAlimentacion').value) {
+        $('fechaAlimentacion').value = new Date().toISOString().slice(0, 10);
+      }
+      if (!inpUsuarioAlim.value) inpUsuarioAlim.value = usuarioRecordado();
+    } else {
+      limpiarAlimentacion();
+    }
+
     // Responsable de la institución: solo lo pide el formato de San Felipe.
     const verResponsable = pide('responsable');
     $('cardResponsable').classList.toggle('asc-hidden', !verResponsable);
@@ -2774,7 +3692,36 @@
 
     const verSoporte = SOP.ACTIVO && pide('soporte');
     cardSoporte.classList.toggle('asc-hidden', !verSoporte);
-    if (!verSoporte) limpiarSoportes();
+    if (verSoporte) pintarSoporte();
+    else limpiarSoportes();
+
+    /* La firma es lo normal, así que se pide salvo que el formato diga que
+       no: la hoja de vida no se firma. */
+    const verFirma = CONSENT.campos.firma !== false;
+    $('cardFirma').classList.toggle('asc-hidden', !verFirma);
+    if (!verFirma) firmaPaciente.limpiar();
+
+    // La sede tampoco: una hoja de vida no se registra en una sede.
+    const verSede = CONSENT.campos.sede !== false;
+    $('bloqueSede').classList.toggle('asc-hidden', !verSede);
+
+    // Foto del encabezado: solo los formatos que la usan.
+    const verFoto = pide('foto');
+    $('campoFoto').classList.toggle('asc-hidden', !verFoto);
+    if (!verFoto) limpiarFoto();
+
+    const verHv = pide('hojaVida');
+    [cardHvPersonales, cardHvFormacion, cardHvExperiencia].forEach((c) =>
+      c.classList.toggle('asc-hidden', !verHv));
+    if (verHv) {
+      // Arranca con un renglón de cada uno: casi todos tienen al menos uno.
+      if (!hvEstudios.filas().length) $('hvAddEstudio').click();
+      if (!hvEmpleos.filas().length) $('hvAddEmpleo').click();
+    } else {
+      /* Solo lo de la hoja de vida: la foto y la alimentación ya las apagó
+         cada uno su propio bloque más arriba. */
+      limpiarHojaVida();
+    }
   }
 
   function abrirFormulario() {
@@ -2784,11 +3731,17 @@
     $('nombres').focus({ preventScroll: true });
   }
 
+  /* Cuántos pasos hay depende del documento, y en el paso 1 todavía no se
+     sabe: ahí se rotula "Paso 1" a secas en vez de prometer un total que
+     puede no cumplirse. */
   function numerarPasos() {
     const visibles = pasosVisibles();
     visibles.forEach((paso, i) => {
       const eyebrow = paso.querySelector('.asc-setup-eyebrow');
-      if (eyebrow) eyebrow.textContent = 'Paso ' + (i + 1) + ' de ' + visibles.length;
+      if (!eyebrow) return;
+      eyebrow.textContent = CONSENT
+        ? 'Paso ' + (i + 1) + ' de ' + visibles.length
+        : 'Paso ' + (i + 1);
     });
   }
 
@@ -2798,16 +3751,12 @@
   }
 
   function volverASeleccion() {
-    CATEGORIA = null;
     form.classList.add('asc-hidden');
     setup.classList.remove('asc-hidden');
-    mostrarPaso(stepPersona);
+    mostrarPaso(stepConsent);
   }
 
-  $('btnVolverPersona').addEventListener('click', () => mostrarPaso(stepPersona));
-  $('btnVolverCategoria').addEventListener('click', () => {
-    mostrarPaso(categoriasDeOrg().length > 1 ? stepCategoria : stepPersona);
-  });
+  $('btnVolverConsent').addEventListener('click', () => mostrarPaso(stepConsent));
   $('btnCambiarSeleccion').addEventListener('click', () => {
     if (ultimoEnvio) {
       setAlert('error', 'Hay un consentimiento generado que todavía no salió. ' +
@@ -2843,6 +3792,9 @@
     buscaResponsable.limpiar();
     limpiarSoportes();
     limpiarFirmas();
+    limpiarHojaVida();
+    limpiarFoto();
+    limpiarAlimentacion();
     form.querySelectorAll('.asc-error-msg:not([id])').forEach((p) => p.remove());
     form.querySelectorAll('.asc-error-msg[id]').forEach((p) => p.classList.add('asc-hidden'));
     form.querySelectorAll('.asc-invalid').forEach((el) => el.classList.remove('asc-invalid'));
@@ -2873,6 +3825,5 @@
   refreshMinors();
   aplicarReglaDocumento();
 
-  // El HTML comprueba esta marca: si falta, es que el módulo no llegó al final.
   window.__ascListo = true;
 })();
