@@ -26,19 +26,15 @@
   const TIPOS_PERSONA = CFG.TIPOS_PERSONA   || [];
   const CONSENTS      = CFG.CONSENTIMIENTOS || [];
 
-  let ORG     = null;   // entidad (Acción Salud / San Felipe)
-  let PERSONA = null;   // tipo de persona que firma
-  let CONSENT = null;   // tipo de consentimiento (imagen / datos)
+  let ORG     = null;   
+  let PERSONA = null;   
+  let CONSENT = null;  
   const sedesActuales = () => (ORG && ORG.sedes) ? ORG.sedes : [];
-
-  // Cada entidad ofrece solo los consentimientos que tenga listados.
   const consentsDeOrg = () => {
     if (!ORG) return [];
     const permitidos = ORG.consentimientos || CONSENTS.map((c) => c.id);
     return CONSENTS.filter((c) => permitidos.indexOf(c.id) !== -1);
   };
-
-
 
   const rolesDelConsent = (c) => TIPOS_PERSONA.filter((t) => {
     const permisos = t.formatos;
@@ -49,19 +45,13 @@
   const consentsDisponibles = () =>
     consentsDeOrg().filter((c) => rolesDelConsent(c).length > 0);
 
-  /* Lo que el rol cambia para el formato elegido: campos extra y rótulos
-     propios del PDF. */
   const ajusteRol = () => (PERSONA && PERSONA.porFormato && CONSENT &&
                            PERSONA.porFormato[CONSENT.id]) || {};
 
-  /* Los campos los define el formato, pero el rol puede encender o apagar
-     los suyos: un acompañante en el certificado necesita además los datos
-     del paciente. */
   const campos = () => Object.assign({}, (CONSENT && CONSENT.campos) || {},
                                      ajusteRol().campos || {});
   const pide = (campo) => !!campos()[campo];
 
-  // Rótulos del PDF: los del rol, con lo que cambie para este formato.
   const rotulosPdf = () => Object.assign({}, (PERSONA && PERSONA.pdf) || {},
                                          ajusteRol().pdf || {});
 
@@ -107,7 +97,7 @@
       try {
         const p = Math.max(0, (pos === null ? limpio.length : pos) - quitados);
         input.setSelectionRange(p, p);
-      } catch (e) { /* algunos navegadores no lo permiten en ciertos tipos */ }
+      } catch (e) {}
     });
   }
   const NO_DIGITOS = /[^0-9]/g;
@@ -136,7 +126,6 @@
   const selTipo = $('tipoDoc');
   selTipo.innerHTML = opcionesDoc();
 
-  // Mismo catálogo para el paciente, cuando lo firma otra persona.
   const selTipoPaciente = $('pacienteTipoDoc');
   selTipoPaciente.innerHTML = opcionesDoc();
 
@@ -210,8 +199,6 @@
     if (inpLugar.value.trim()) inpLugar.value = normalizarLugar(inpLugar.value);
   });
 
-  /* El documento del paciente sigue la misma regla: letras solo si es
-     pasaporte. */
   const inpDocPaciente = $('pacienteDoc');
   const cardPaciente   = $('cardPaciente');
 
@@ -258,7 +245,6 @@
     }
     return frag;
   }
-
 
   function crearBuscador(input, fuente, nombrePlural) {
     const caja   = input.closest('.asc-buscador');
@@ -308,7 +294,6 @@
       const exacta = r.lista.some((v) => v === texto);
 
       filas = r.lista.map((v) => ({ valor: v, libre: false }));
-      // "Otro": solo si escribieron algo que no es ya una opción.
       if (texto && !exacta) filas.push({ valor: texto, libre: true });
 
       lista.innerHTML = '';
@@ -419,8 +404,6 @@
       }
     });
 
-    /* Al salir sin confirmar, el campo vuelve al último valor elegido: si
-       no, quedaría un texto a la vista que no es el que se va a imprimir. */
     input.addEventListener('blur', () => {
       window.setTimeout(() => {
         if (document.activeElement === input) return;
@@ -441,9 +424,6 @@
   const buscaProcedimiento = crearBuscador($('procedimiento'),
     () => (CONSENT && CONSENT.PROCEDIMIENTOS) || [], 'procedimientos');
 
-  // Responsables de la institución: se busca por nombre.
-  /* La lista vive en la entidad, porque la comparten sus formatos. Un
-     formato puede traer la suya y entonces manda esa. */
   const RESPONSABLES = () => (CONSENT && CONSENT.RESPONSABLES) ||
                              (ORG && ORG.RESPONSABLES) || [];
   const buscaResponsable = crearBuscador($('responsable'),
@@ -495,7 +475,6 @@
       '</div>';
     entry.querySelector('.asc-minor-remove').addEventListener('click', () => { entry.remove(); refreshMinors(); });
     entry.querySelectorAll('input').forEach(bindLiveClear);
-    // La tarjeta de identidad siempre es numérica
     filtrarEntrada(entry.querySelector('[data-field="documento"]'), NO_DIGITOS);
     return entry;
   }
@@ -551,7 +530,6 @@
   const hvEstudiosList    = $('hvEstudiosList');
   const hvEmpleosList     = $('hvEmpleosList');
 
-  // Los grados 1 a 11 del último grado aprobado.
   (function poblarGrados() {
     const sel = $('hvGrado');
     for (let i = 1; i <= 11; i++) {
@@ -804,13 +782,6 @@
     };
   }
 
-  /* =======================================================================
-     FOTO DEL ENCABEZADO
-     Una sola imagen. El escritor de PDF solo admite JPEG (DCTDecode), así
-     que sea cual sea el formato que suba la persona se redibuja en un canvas
-     y se exporta como JPEG. De paso se recorta a la proporción del recuadro
-     para que la cara no salga estirada.
-     ======================================================================= */
   const FOTO_MAX_MB = 12;
   const fotoInput  = $('fotoInput');
   const fotoCaja   = $('fotoCaja');
@@ -818,7 +789,7 @@
   const fotoVacia  = $('fotoVacia');
   const fotoQuitar = $('fotoQuitar');
   const fotoError  = $('fotoError');
-  let foto = null;   // { b64, w, h, nombre }
+  let foto = null;
 
   const fotoCfg = () => (CONSENT && CONSENT.foto) || { ancho: 27, alto: 34 };
 
@@ -837,8 +808,6 @@
     fotoError.classList.toggle('asc-hidden', !msg);
   }
 
-  /* Recorta al centro con la proporción del recuadro y escala a un tamaño
-     razonable para impresión (unos 300 ppp sobre 27 mm). */
   function prepararFoto(img) {
     const cfg = fotoCfg();
     const razon = cfg.ancho / cfg.alto;
@@ -852,7 +821,6 @@
     lienzo.width  = anchoPx;
     lienzo.height = Math.round(anchoPx / razon);
     const ctx = lienzo.getContext('2d');
-    // Fondo blanco: un PNG con transparencia saldría negro al pasar a JPEG.
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, lienzo.width, lienzo.height);
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, lienzo.width, lienzo.height);
@@ -865,7 +833,7 @@
 
   fotoInput.addEventListener('change', () => {
     const file = fotoInput.files && fotoInput.files[0];
-    fotoInput.value = '';          // permite volver a elegir el mismo archivo
+    fotoInput.value = '';
     if (!file) return;
     errorFoto('');
 
@@ -886,7 +854,6 @@
       }
       URL.revokeObjectURL(url);
     };
-    /* Un HEIC de iPhone no lo decodifica el navegador: cae aquí. */
     img.onerror = () => {
       URL.revokeObjectURL(url);
       errorFoto('No se pudo leer la imagen. Debe ser JPG, PNG o WEBP ' +
@@ -932,19 +899,17 @@
     PRESION_MIN: 0.55, PRESION_MAX: 1.75
   }, CFG.FIRMA || {});
 
-  /* Mecánica del trazo (puntero, presión del lápiz, redimensionado y
-     recorte final). Vive una sola vez, en el lienzo grande del modal. */
   function crearLienzo(wrapper, canvas, placeholder) {
     const ctx = canvas.getContext('2d');
 
     let isDrawing = false, hasStrokes = false;
-    let activeId = null;      // pointerId que está dibujando; el resto se ignora
-    let prevPt   = null;      // último punto crudo
-    let prevMid  = null;      // último punto medio (extremo de la curva anterior)
-    let prevW    = 0;         // grosor actual, suavizado entre eventos
+    let activeId = null;      
+    let prevPt   = null;      
+    let prevMid  = null;      
+    let prevW    = 0;    
 
-    let presionReal = false;  // el lápiz manda presión variable de verdad
-    let modoLapiz   = false;  // ya se detectó un lápiz en este pad
+    let presionReal = false;
+    let modoLapiz   = false;
 
     function applyStyle() {
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -1018,15 +983,15 @@
     function anotar(evt) {
       const p = getPos(evt);
       const dx = p.x - prevPt.x, dy = p.y - prevPt.y;
-      if (dx * dx + dy * dy < 0.16) return;          // < 0.4 px: ruido, se descarta
+      if (dx * dx + dy * dy < 0.16) return;
       const objetivo = grosorDe(evt);
-      prevW += (objetivo - prevW) * 0.35;            // el grosor cambia sin escalones
+      prevW += (objetivo - prevW) * 0.35;
       segmento(p, prevW);
     }
 
     function startDrawing(e) {
-      if (activeId !== null) return;   // ya hay un trazo: palma o segundo dedo
-      if (e.button !== 0) return;      // botón lateral del lápiz o clic derecho
+      if (activeId !== null) return;  
+      if (e.button !== 0) return;  
       e.preventDefault();
       if (e.pointerType === 'pen') activarModoLapiz();
 
@@ -1058,10 +1023,10 @@
       if (e && e.pointerId !== undefined && activeId !== null && e.pointerId !== activeId) return;
       isDrawing = false;
       if (activeId !== null) {
-        try { canvas.releasePointerCapture(activeId); } catch (err) { /* ya liberado */ }
+        try { canvas.releasePointerCapture(activeId); } catch (err) {}
         activeId = null;
       }
-      // Cierra el tramo final: si no, faltaría media curva en el remate.
+    
       if (prevPt && prevMid) {
         ctx.beginPath();
         ctx.lineWidth = prevW || FCFG.GROSOR;
@@ -1130,14 +1095,6 @@
     };
   }
 
-
-
-  /* =====================================================================
-     PANTALLA DE FIRMA
-     Un solo lienzo grande, compartido: se abre desde el botón de cada
-     bloque y devuelve el trazo al bloque que lo pidió. En el formulario
-     solo queda la vista previa, así nadie firma en un espacio pequeño.
-     ===================================================================== */
   const modalFirma = $('firmaModal');
   const lienzo = crearLienzo($('firmaModalWrapper'), $('firmaModalCanvas'),
                              $('firmaModalPlaceholder'));
@@ -1182,13 +1139,6 @@
     }
   });
 
-  /* Bloque de firma del formulario: vista previa + botón. Guardar en la
-     pantalla grande ya confirma; aquí no hay un segundo paso. */
-  /* =======================================================================
-     SERVICIO DE ALIMENTACIÓN (certificado de San Felipe)
-     El tipo va en casillas y no en un select porque en una misma entrega
-     puede haber más de uno: cena y refrigerio, desayuno y almuerzo…
-     ======================================================================= */
   const cardAlimentacion = $('cardAlimentacion');
   const tiposAlimCont    = $('tiposAlimentacion');
   const alimError        = $('alimentacionError');
@@ -1234,11 +1184,6 @@
 
   filtrarEntrada(inpRaciones, NO_DIGITOS);
 
-
-  /* La firma del responsable de la institución se guarda en la sesión: es la
-     misma persona firmando lo mismo toda la jornada, y volver a trazarla en
-     cada documento es trabajo repetido. Se borra al pulsar "Borrar", al
-     cerrar la pestaña, o al limpiar la selección. */
   const CLAVE_FIRMA = 'asc_firma_responsable';
   function recordarFirma(f) {
     try {
@@ -1391,7 +1336,6 @@
     doc.text('Gerente',                c(2), 271.6, { size: 8.5, align: 'center' });
   }
 
-  // "la IPS Acción salud…" -> "La IPS Acción salud…"
   const mayus1 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
   function generarPDF(d) {
@@ -1526,7 +1470,6 @@
     doc.text(d.departamento, 137, y, { size: 11, bold: true });
     doc.line(135, y + 1.4, 190, y + 1.4, { width: 0.4 });
 
-    /* ---------- Numeración final "X de N" ---------- */
     const N = doc.pageCount();
     const cellX = (M.CEL[5] + M.CEL[6]) / 2;
     for (let i = 0; i < N; i++) {
@@ -1918,7 +1861,6 @@
     doc.text(d.consent.fechaFormato || d.fechaCorta, mid(3, 4), y, { size: 7, align: 'center' });
     doc.text('VERSIÓN',           mid(4, 5), y, { size: 7, bold: true, align: 'center' });
     doc.text(d.consent.version || '01', mid(5, 6), y, { size: 7, align: 'center' });
-    // La última celda lleva el "Página X de N", que se estampa al cerrar.
     return y;
   }
 
@@ -1941,8 +1883,6 @@
       doc.addImage('ImFirmaResp', d.firmaResponsable.b64, d.firmaResponsable.w, d.firmaResponsable.h);
     }
 
-    /* Times New Roman 10 con interlineado sencillo, medido sobre el Word
-       original: a ese cuerpo las líneas cortan donde cortan allí. */
     const SZ = 10, LH = 4.06;
     const X = M_SF.BX, W = M_SF.BW;
     let y, yPagina;
@@ -1963,7 +1903,6 @@
     doc.text('SAN FELIPE S.A.S.', X + W / 2, y + 4.3, { size: 10, bold: true, align: 'center' });
     y += 12;
 
-    // Fecha y entidad
     const linea = (etiqueta, valor, x0, x1) => {
       const fin = doc.text(etiqueta, x0, y, { size: SZ });
       if (valor) doc.text(valor, fin + 1.5, y, { size: SZ, bold: true });
@@ -1973,7 +1912,6 @@
     linea('ENTIDAD: ', d.entidadRemitente,  X + 78,   X + W);
     y += 9.5;
 
-    // Encabezado declarativo, con los espacios del formato ya rellenos
     y = doc.paragraph([
       { s: 'Yo ' }, { s: d.nombreCompleto, bold: true, underline: true },
       { s: ', con cédula de ciudadanía ' }, { s: d.numeroDoc, bold: true, underline: true },
@@ -1986,7 +1924,6 @@
       { s: '., en calidad de usuario del Hogar de Paso y/o Consulta Externa, declaro que he sido debidamente informado sobre las normas, responsabilidades, derechos y prohibiciones relacionadas con mi estadía y participación en los servicios. En consecuencia, firmo el presente consentimiento informado de forma libre y voluntaria, y acepto las condiciones que se detallan a continuación:' }
     ], X, y, W, { size: SZ, lineHeight: LH }) + 2.5;
 
-    // Cuerpo transcrito del Word
     CUERPO_SF.forEach((p) => {
       const s = SANG_SF[p.t] || SANG_SF.parrafo;
       const opts = { size: SZ, lineHeight: LH };
@@ -2014,8 +1951,6 @@
     y += SOBRE + 6;
     const yFirma = y;
 
-    /* Cada bloque recibe su propio firmante: `quien` trae nombre, documento
-       e imagen de la firma, o null si esa línea se deja para llenar a mano. */
     function bloqueSF(x0, x1, rotulo, quien) {
       let yy = yFirma;
       const firma = quien && quien.firma;
@@ -2058,20 +1993,20 @@
   }
 
   const C_CERT = {
-    azul:      [0, 91, 142],     // reglas y rótulos destacados
-    azulTexto: [0, 61, 92],      // razón social y título
-    gris:      [74, 96, 112],    // NIT, dirección y pies de firma
-    texto:     [26, 43, 56],     // cuerpo y tabla
+    azul:      [0, 91, 142],
+    azulTexto: [0, 61, 92],
+    gris:      [74, 96, 112],
+    texto:     [26, 43, 56],
     sepFuerte: [176, 207, 224],
     sepSuave:  [224, 236, 244],
     cajaFondo: [240, 248, 255],
-    verde:     [0, 168, 120]     // la hora, como en el original
+    verde:     [0, 168, 120] 
   };
 
   const M_CERT = {
-    X0: 6.2, X1: 209.2,          // márgenes del cuerpo
-    VALOR: 37,                   // columna de valores de la tabla
-    FILA: 6.9                    // alto de cada fila
+    X0: 6.2, X1: 209.2, 
+    VALOR: 37,               
+    FILA: 6.9          
   };
 
   const DIAS  = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -2086,12 +2021,9 @@
     const W = hoja.ancho, X0 = M_CERT.X0, X1 = M_CERT.X1;
     const membrete = d.consent.membrete || {};
 
-    /* ---------- Membrete ---------- */
-    // Logo más grande que en el documento de referencia, a la izquierda.
     const lw = 46, lh = lw * d.logo.h / d.logo.w;
     doc.image('ImLogo', 8, 10.5 - lh / 2, lw, lh);
 
-    // El bloque de texto se centra en el espacio que queda a la derecha.
     const cxCab = (8 + lw + W) / 2;
     doc.text(membrete.razon || '', cxCab, 6.4, { size: 11.5, bold: true, align: 'center', rgb: C_CERT.azulTexto });
     doc.text(membrete.nit || '',       cxCab, 10.6, { size: 7.5, align: 'center', rgb: C_CERT.gris });
@@ -2107,9 +2039,6 @@
     const prefijo = (membrete.razon || '') + ' ';
     if (sede.indexOf(prefijo) === 0) sede = sede.slice(prefijo.length);
 
-    /* ---------- Declaración ----------
-       Con un acompañante la constancia es sobre otra persona: cambia el
-       sujeto de la frase y el posesivo del final. */
     const declaracion = d.paciente ? [
       { s: 'Yo. ' }, { s: d.nombreCompleto },
       { s: ' identificado con ' + d.tipoDocId + ' - ' + d.numeroDoc +
@@ -2137,9 +2066,6 @@
       ['Observaciones:',  d.observaciones],
       ['Usuario:',        d.usuario]
     ];
-    /* La tabla arranca donde el documento de referencia, salvo que la
-       declaración crezca (nombres largos, o la frase del acompañante, que
-       lleva dos personas): entonces baja lo justo para no pisarla. */
     let yf = Math.max(50.1, y + 2.2);
     doc.line(0, yf, W, yf, { width: 0.35, rgb: C_CERT.sepFuerte });
     filas.forEach((f, i) => {
@@ -2160,22 +2086,18 @@
       doc.image('ImFirma', W / 2 - fw / 2, yRegla - fh - 4, fw, fh);
     }
     doc.line(X0, yRegla, X1, yRegla, { width: 0.55, rgb: C_CERT.texto });
-    // El rótulo lo puede cambiar el rol desde porFormato.pdf.
     doc.text((d.pdf && d.pdf.firmaCertificado) || 'FIRMA PACIENTE / RESPONSABLE',
              W / 2, 124.7,
              { size: 8.6, align: 'center', rgb: C_CERT.gris, tracking: 0.5 });
     doc.text(d.tipoDocId + ' ' + d.numeroDoc + ' - ' + d.nombreCompleto, W / 2, 128.8,
              { size: 7.4, align: 'center', rgb: C_CERT.gris });
 
-    /* ---------- Recuadro de fecha de generación ---------- */
     const cajaY = 133.2, cajaH = 12.1;
     doc.rect(0.5, cajaY, W - 1, cajaH,
              { width: 0.35, rgb: C_CERT.sepFuerte, relleno: C_CERT.cajaFondo });
     doc.text('FECHA DE GENERACIÓN', W / 2, cajaY + 3.6,
              { size: 6.8, bold: true, align: 'center', rgb: C_CERT.azul, tracking: 0.8 });
 
-    /* La fecha y la hora van pegadas con una barra en medio, así que se
-       miden primero para centrar el conjunto. */
     const sep = '   |   ';
     const anchoF = doc.widthOf(d.generadaFecha, 9.4, true);
     const anchoS = doc.widthOf(sep, 9.4, true);
@@ -2190,15 +2112,15 @@
   }
 
   const M_HV = {
-    X0: 12, X1: 203.9,      // márgenes útiles en carta (215.9 mm de ancho)
-    FILA: 6.4,              // alto de una fila de tabla
-    PIE: 264                 // debajo de aquí se pasa de página
+    X0: 12, X1: 203.9,      
+    FILA: 6.4,             
+    PIE: 264     
   };
-  /* Componentes de 0 a 255, como en el resto del módulo. */
+
   const C_HV = {
     texto:  [26, 26, 30],
     marco:  [0, 0, 0],
-    fondo:  [229, 241, 245],   // el celeste de los encabezados del formato
+    fondo:  [229, 241, 245],  
     tenue:  [108, 115, 128],
     blanco: [255, 255, 255]
   };
@@ -2206,7 +2128,6 @@
   const MESES_HV = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
                     'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
 
-  // 'aaaa-mm-dd' -> {d,m,a}; sin pasar por Date, que corre un día en UTC.
   function partesFecha(v) {
     const m = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(v || '');
     return m ? { d: m[3] || '', m: m[2], a: m[1] } : null;
@@ -2231,10 +2152,6 @@
     const W = hoja.ancho, X0 = M_HV.X0, X1 = M_HV.X1, ANCHO = X1 - X0;
     let y = 0;
 
-    /* ---------- Encabezado ---------- */
-    /* El encabezado es más alto que el del formato impreso para que quepa la
-       foto tipo documento a la derecha. El recuadro se dibuja siempre: sin
-       foto queda vacío, igual que el del original. */
     const F = d.consent.foto || { ancho: 27, alto: 34 };
     const CAB = { y: 10, alto: F.alto + 4 };
     const FOTO_X = X1 - 3 - F.ancho;
@@ -2264,7 +2181,7 @@
       y = CAB.y + CAB.alto + 6;
     }
 
-    // Cabecera de sección: el óvalo negro numerado del formato oficial.
+  
     function seccion(numero, titulo) {
       const h = 6.2;
       doc.rect(X0, y, 8, h, { relleno: C_HV.marco, sinBorde: true });
@@ -2276,8 +2193,6 @@
       y += h + 3.4;
     }
 
-    /* Una fila con celdas. celdas = [{ancho, etiqueta, valor}]; el ancho es
-       una proporción del ancho útil. */
     function fila(celdas, alto) {
       const h = alto || M_HV.FILA * 1.55;
       let x = X0;
@@ -2298,7 +2213,6 @@
       y += h;
     }
 
-    // Corta lo que no quepa en la celda, con puntos suspensivos.
     function recortar(txt, anchoMM, size) {
       if (doc.widthOf(txt, size, false) <= anchoMM) return txt;
       let t = txt;
@@ -2308,7 +2222,6 @@
       return t + '…';
     }
 
-    // Barra celeste de subtítulo dentro de una sección.
     function subtitulo(txt) {
       doc.rect(X0, y, ANCHO, 5, { relleno: C_HV.fondo, width: 0.4, rgb: C_HV.marco });
       doc.text(txt, W / 2, y + 3.5,
@@ -2316,8 +2229,6 @@
       y += 5;
     }
 
-    /* Salta de página cuando lo que viene no cabe. Es lo que permite que el
-       documento crezca con la experiencia en vez de truncarla. */
     function espacio(alto) {
       if (y + alto <= M_HV.PIE) return;
       pie();
@@ -2331,7 +2242,6 @@
 
     encabezado();
 
-    /* ---------- 1. Datos personales ---------- */
     seccion(1, 'DATOS PERSONALES');
 
     const ap = (d.apellidos || '').trim().split(/\s+/);
@@ -2352,8 +2262,7 @@
         valor: hv.nacionalidad === 'EXT' ? (hv.paisNacionalidad || '') : 'Colombia' }
     ]);
 
-    /* La libreta militar solo aplica a los hombres: en una hoja de vida de
-       mujer la fila no se dibuja, no queda en blanco. */
+
     if (hv.libreta) {
       fila([
         { ancho: 1.6, etiqueta: 'LIBRETA MILITAR',
@@ -2382,7 +2291,6 @@
       { ancho: 2, etiqueta: 'EMAIL', valor: hv.email || '' }
     ]);
 
-    /* ---------- 2. Formación académica ---------- */
     const hayBasica = hv.grado || hv.tituloObtenido || hv.fechaGrado;
     if (hayBasica || (hv.estudios || []).length) {
       y += 5;
@@ -2413,8 +2321,6 @@
           { ancho: 0.9,  t: 'No. TARJETA' }
         ];
         const total = COLS.reduce((s, c) => s + c.ancho, 0);
-
-        // Cabecera de la tabla
         let x = X0;
         COLS.forEach((c) => {
           const w = ANCHO * c.ancho / total;
@@ -2443,15 +2349,12 @@
         });
       }
     }
-
-    /* ---------- 3. Experiencia laboral ---------- */
     if ((hv.empleos || []).length) {
       y += 5;
       espacio(40);
       seccion(3, 'EXPERIENCIA LABORAL');
 
       hv.empleos.forEach((e, i) => {
-        // Un empleo son cuatro filas: o entra entero o pasa a la otra página.
         espacio(5 + M_HV.FILA * 1.55 * 4);
         subtitulo(i === 0 ? 'EMPLEO ACTUAL O CONTRATO VIGENTE'
                           : 'EMPLEO O CONTRATO ANTERIOR');
@@ -2469,7 +2372,6 @@
         fila([
           { ancho: 1.1, etiqueta: 'TELÉFONOS', valor: e.telefonos },
           { ancho: 1, etiqueta: 'FECHA DE INGRESO', valor: fechaCortaHV(e.ingreso) },
-          // Sin fecha de retiro se entiende que sigue trabajando ahí.
           { ancho: 1, etiqueta: 'FECHA DE RETIRO',
             valor: e.retiro ? fechaCortaHV(e.retiro) : 'Actual' }
         ]);
@@ -2488,14 +2390,6 @@
     return doc.build();
   }
 
-  // Cada consentimiento tiene su propio constructor de PDF.
-  /* =======================================================================
-     CERTIFICADO DE RECEPCIÓN DEL SERVICIO DE ALIMENTACIÓN (San Felipe)
-     Mismo esqueleto que el certificado de atención de Acción Salud, con dos
-     diferencias: el encabezado es la banda de San Felipe (la misma del
-     SP-ADM-RG-01) y quien firma es el responsable de la institución, no el
-     beneficiario.
-     ======================================================================= */
   function generarPDFAlimentacion(d) {
     const hoja = d.consent.hoja || { ancho: 215.9, alto: 279.4 };
     const doc = new PDFDoc({ width: hoja.ancho, height: hoja.alto });
@@ -2512,7 +2406,6 @@
     const W = hoja.ancho, X0 = M_CERT.X0, X1 = M_CERT.X1;
     const al = d.alimentacion || {};
 
-    /* ---------- Banda de la institución ---------- */
     let yTope = 12;
     if (d.consent.banda) {
       const b = d.consent.banda;
@@ -2523,8 +2416,6 @@
 
     doc.line(0, yTope, W, yTope, { width: 0.5, rgb: C_CERT.azul });
 
-    /* El título es largo: si no cabe en una línea se parte en dos, en vez de
-       encogerlo hasta que no se lea. */
     const titulo = d.consent.titulo || 'CERTIFICADO DE RECEPCIÓN DEL SERVICIO DE ALIMENTACIÓN';
     let yTit = yTope + 6.9;
     const opTit = { size: 12.5, bold: true, align: 'center',
@@ -2542,9 +2433,6 @@
 
     let sede = d.sedeNombre || 'UNIDAD SAN FELIPE';
 
-    /* ---------- Declaración ----------
-       Si recibe un acompañante, la constancia es sobre otra persona: cambia
-       el sujeto de la frase, igual que en el certificado de atención. */
     const declaracion = d.paciente ? [
       { s: 'Yo, ' }, { s: d.nombreCompleto },
       { s: ', identificado(a) con ' + d.tipoDocId + ' - ' + d.numeroDoc +
@@ -2566,7 +2454,6 @@
     let y = doc.paragraph(declaracion, X0, yTit + 8.1, X1 - X0,
                           { size: 9.2, rgb: C_CERT.texto });
 
-    /* ---------- Tabla ---------- */
     const filas = [
       ['Fecha:',                fechaCortaHV(al.fecha)],
       ['Servicio:',             d.consent.servicio || ''],
@@ -2584,10 +2471,6 @@
       doc.line(0, yf, W, yf, { width: 0.35, rgb: ultima ? C_CERT.sepFuerte : C_CERT.sepSuave });
     });
 
-    /* ---------- Las dos firmas ----------
-       Quien recibe a la izquierda y quien entrega a la derecha. El bloque se
-       ancla debajo de la tabla, no a una altura fija: con la banda y un
-       título de dos líneas la tabla baja bastante y la pisaba. */
     const yRegla = Math.max(120.6, yf + 26);
     const LX0 = 18, LX1 = 100, RX0 = 116, RX1 = 198;
 
@@ -2607,8 +2490,6 @@
       }
     }
 
-    /* El rótulo de la izquierda lo puede cambiar el rol: si recibe un
-       acompañante, dice que es él y no el beneficiario. */
     const rotIzq = (d.pdf && d.pdf.firmaCertificado) || 'BENEFICIARIO';
     bloqueFirmaAlim(LX0, LX1, 'ImFirma', d.firma, 'FIRMA DE QUIEN RECIBE — ' + rotIzq,
                     d.tipoDocId + ' ' + d.numeroDoc + ' - ' + d.nombreCompleto);
@@ -2616,7 +2497,7 @@
                     'RESPONSABLE DE LA INSTITUCIÓN',
                     d.responsable ? 'C.C. ' + d.responsable.documento + ' - ' + d.responsable.nombre : '');
 
-    /* ---------- Recuadro de fecha de generación ---------- */
+  
     const cajaY = yRegla + 12.6, cajaH = 12.1;
     doc.rect(0.5, cajaY, W - 1, cajaH,
              { width: 0.35, rgb: C_CERT.sepFuerte, relleno: C_CERT.cajaFondo });
@@ -2636,9 +2517,6 @@
     return doc.build();
   }
 
-  /* Los seis párrafos del AS-SM-PROC-008, transcritos del documento de
-     referencia. Las negritas son las del original. El primero se arma aparte
-     porque lleva intercalados el nombre y el documento de quien firma. */
   const CUERPO_TRANSPORTE = [
     [{ s: 'Entiendo que este apoyo se brinda de manera gratuita y voluntaria, conforme a las condiciones, disponibilidad y mecanismos establecidos por ACCIÓN SALUD PARA TODOS S.A.S., por lo que la institución podrá modificarlo, suspenderlo o finalizarlo, informando oportunamente cuando corresponda.' }],
     [{ s: 'Me comprometo a hacer un uso adecuado del transporte, atender las instrucciones de seguridad y suministrar la información necesaria para su adecuada coordinación.' }],
@@ -2646,11 +2524,6 @@
     [{ s: 'Autorizo a ACCIÓN SALUD PARA TODOS S.A.S. para realizar el tratamiento de los datos personales necesarios para la coordinación, gestión y seguimiento del apoyo de transporte, de conformidad con la normativa vigente y las políticas institucionales.' }]
   ];
 
-  /* =======================================================================
-     AS-SM-PROC-008 — Constancia de aceptación para apoyo voluntario de
-     transporte. Comparte encabezado y pie de firmas con el AS-SM-PROC-007:
-     son el mismo formato de CREAS con otro cuerpo.
-     ======================================================================= */
   function generarPDFTransporte(d) {
     const doc = new PDFDoc({ width: 210, height: 297 });
     doc.addImage('ImLogo', d.logo.b64, d.logo.w, d.logo.h);
@@ -2669,8 +2542,6 @@
 
     nuevaPagina();
 
-    /* Primer párrafo: el nombre y el documento van subrayados sobre la línea,
-       como en el impreso. */
     y = doc.paragraph([
       { s: 'Yo, ' }, { s: d.nombreCompleto, bold: true, underline: true },
       { s: ', identificado(a) con documento de identidad No. ' },
@@ -2716,7 +2587,6 @@
       doc.line(x0, yy, x1, yy, { width: 0.5 });
       yy += 4.6;
       doc.text(rotulo, x0, yy, { size: 9.5, bold: true });
-      // El original deja un renglón en blanco antes de la línea de la cédula.
       yy += 9.4;
       const fin = doc.text('C.C. o HUELLA', x0, yy, { size: 9.5, bold: true });
       if (mio) doc.text(' ' + d.numeroDoc, fin + 1.5, yy, { size: 9.5, bold: true });
@@ -2728,7 +2598,6 @@
     const yDer = bloqueT(RX0, RX1, 'TESTIGO Y/O APODERADO',    destino === 'testigo');
     y = Math.max(yIzq, yDer);
 
-    // Pie del original, con el visto bueno del área jurídica.
     if (d.consent.revisor) {
       doc.text(d.consent.revisor, X0, Math.min(y + 14, M7.BODY_BOTTOM + 6), { size: 8 });
     }
@@ -2787,7 +2656,6 @@
       fail(identificacion, 'Debe contener solo números (5 a 15 dígitos).');
     }
 
-    // El lugar de expedición solo lo pide el formato de uso de imagen.
     if (pide('lugarExpedicion')) {
       if (!lugar.value.trim()) {
         fail(lugar, 'Ingrese el lugar de expedición.');
@@ -2814,8 +2682,6 @@
         fail(pd, 'Debe contener solo números (5 a 15 dígitos).');
       }
 
-      /* Firmar como acompañante de uno mismo no tiene sentido y suele ser
-         un error de digitación. */
       if (pnum && pnum === num) {
         fail(pd, 'El paciente y quien firma no pueden tener el mismo documento.');
       }
@@ -2828,22 +2694,15 @@
       };
     }
 
-    /* La finalidad se imprime dentro del punto 2 del formato: si queda
-       vacía, el consentimiento sale con una frase incompleta. */
     const finalidad = $('finalidad');
     if (pide('finalidad') && !finalidad.value.trim()) {
       fail(finalidad, 'Indique la finalidad de la recolección de los datos.');
     }
 
-    /* Certificado: convenio, procedimiento y usuario son obligatorios;
-       observaciones no, y la fecha ya viene puesta con la de hoy. */
     let convenio = '', procedimiento = '';
     if (pide('atencion')) {
       const fechaAt = $('fechaAtencion'), usuario = $('usuario');
       if (!fechaAt.value) fail(fechaAt, 'Indique la fecha de la atención.');
-
-      /* El buscador solo da por bueno un valor cuando se elige una fila
-         (de la lista o la de "Otro"): escribir sin confirmar no cuenta. */
       convenio = buscaConvenio.get();
       if (!convenio) fail($('convenio'), 'Elija el convenio de la lista, o «Otro» para usar lo escrito.');
 
@@ -2852,22 +2711,15 @@
 
       if (!usuario.value.trim()) fail(usuario, 'Indique el usuario que registra.');
     }
-
-    /* La hoja de vida no se registra en una sede, así que ahí no se exige. */
     if (CONSENT.campos.sede !== false) {
       if (!sede.value)                fail(sede, 'Seleccione una sede.');
       if (!ciudad.value.trim())       fail(ciudad, 'Indique la ciudad.');
       if (!departamento.value.trim()) fail(departamento, 'Indique el departamento.');
     }
 
-    /* Hoja de vida. Solo se exige lo que el formato oficial marca como
-       identificación básica; la formación y la experiencia son opcionales
-       porque hay quien no tiene ninguna de las dos. */
     let hojaVida = null;
     if (pide('hojaVida')) hojaVida = leerHojaVida(fail);
 
-    /* Alimentación: al menos un tipo marcado, y una cantidad de raciones
-       mayor que cero. */
     let alimentacion = null;
     if (pide('alimentacion')) {
       const fechaAl = $('fechaAlimentacion');
@@ -2915,8 +2767,6 @@
       });
     }
 
-    /* Guardar en la pantalla grande ya confirma, así que basta con mirar
-       si el panel tiene firma. */
     function revisarFirma(f, etiqueta) {
       if (!f.tieneTrazos()) {
         f.error.textContent = etiqueta + ' es obligatoria: pulse "Generar firma".';
@@ -2926,7 +2776,7 @@
       }
       return true;
     }
-    // La hoja de vida no se firma, así que ahí no se exige.
+
     if (CONSENT.campos.firma !== false) revisarFirma(firmaPaciente, 'La firma');
 
     let responsable = null;
@@ -2951,16 +2801,12 @@
     const f = new Date();
     return {
       nombreCompleto: titleCase(nombres.value + ' ' + apellidos.value),
-      /* La hoja de vida los pide separados (primer apellido, segundo
-         apellido, nombres), así que además del nombre completo viajan sueltos. */
       soloNombres: titleCase(nombres.value),
       apellidos: titleCase(apellidos.value),
       tipoDocId: tipoDoc.value,
       tipoDocLabel: (TIPOS_DOC.find((t) => t.id === tipoDoc.value) || {}).label,
       numeroDoc: num,
       lugarExpedicion: titleCase(lugar.value),
-
-      // Entidad, persona y consentimiento elegidos en la pantalla previa
       orgId: ORG.id,
       orgNombre: ORG.nombre,
       logo: logoDelPdf(),
@@ -2976,8 +2822,6 @@
       finalidad: finalidad.value.trim(),
       entidadRemitente: $('entidadRemitente').value.trim(),
       fechaAtencion: $('fechaAtencion').value,
-      // dd/mm/aaaa para la tabla, sin pasar por Date (evita el corrimiento
-      // de un día que produce interpretar 'aaaa-mm-dd' como UTC).
       fechaAtencionLarga: (function (v) {
         const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '');
         return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
@@ -3038,11 +2882,10 @@
     limpiarPaciente();
 
     if (LIMPIAR_SEDE) {
-      poblarSedes();   // vuelve al estado inicial de la entidad elegida
+      poblarSedes();
       [$('sede'), $('ciudad'), $('departamento')].forEach(clearError);
     }
 
-    // Menores: apagar el interruptor y descartar las tarjetas
     toggleMinor.checked = false;
     minorFormContainer.classList.add('asc-hidden');
     minorsList.innerHTML = '';
@@ -3085,16 +2928,13 @@
 
   const submitBtn   = $('submitBtn');
   const submitLabel = $('submitLabel');
-  let ultimoEnvio   = null;   // { bytes, nombreArchivo, datos } para reintentos
+  let ultimoEnvio   = null;
 
   function botonOcupado(ocupado, texto) {
     submitBtn.disabled = ocupado;
     submitLabel.textContent = texto;
   }
 
-  /* A qué buzón va este documento. Cada formato puede desviarse poniendo su
-     propio `correo`; el que no lo tenga usa el general. El Dropbox no cambia:
-     es el mismo para todos. */
   const correoDestino = () =>
     ((CONSENT && CONSENT.correo) || CFG.ENVIO_CORREO || '').trim();
 
@@ -3114,9 +2954,6 @@
         tipoDocumento: d.tipoDocLabel,
         documento: d.numeroDoc,
         lugarExpedicion: d.lugarExpedicion,
-        /* Un formato sin sede (la hoja de vida) no manda ninguna, aunque la
-           entidad tenga una sola y el select la preseleccione: nadie la
-           eligió, y en el correo sería un dato inventado. */
         sede: d.consent.campos.sede === false ? '' : d.sedeNombre,
         ciudad: d.ciudad,
         departamento: d.departamento,
@@ -3200,7 +3037,6 @@
   const soporteList  = $('soporteList');
   const soporteError = $('soporteError');
 
-  // [{ nombre, tipo:'pdf'|'jpg'|'png', bytes:Uint8Array, paginas, peso }]
   let soportes = [];
 
   const MB = 1024 * 1024;
@@ -3210,9 +3046,6 @@
 
   const hayPdfLib = () => (typeof PDFLib !== 'undefined' && PDFLib && PDFLib.PDFDocument);
 
-  /* Cada formato puede ajustar la tarjeta de adjuntos: el certificado pide
-     la copia del documento (tope 4) y la hoja de vida, certificados y
-     diplomas (tope 6). Lo que el formato no diga se hereda de SOPORTE. */
   const sop = () => Object.assign({}, SOP, (CONSENT && CONSENT.soporte) || {});
 
   function pintarSoporte() {
@@ -3246,8 +3079,6 @@
     const errores = [];
     soporteError.classList.add('asc-hidden');
 
-    // Se procesan en serie: abrir un PDF grande bloquea menos así, y el
-    // orden en que quedan adjuntos es el que eligió el usuario.
     return lista.reduce((cadena, file) => cadena.then(() => {
       if (soportes.length >= sop().MAX_ARCHIVOS) {
         if (errores.indexOf('tope') === -1) {
@@ -3275,8 +3106,6 @@
           errores.push('No se cargó la librería para leer PDF. Revise la conexión a internet.');
           return;
         }
-        /* Se abre aquí, no al enviar: si el PDF viene dañado o protegido
-           conviene saberlo antes de tomar la firma. */
         return PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true })
           .then((doc) => {
             const paginas = doc.getPageCount();
@@ -3317,7 +3146,6 @@
           '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
         '</button>';
 
-      // textContent y no innerHTML: el nombre del archivo lo elige el usuario.
       fila.querySelector('.asc-file-name').textContent = s.nombre;
       fila.querySelector('.asc-file-meta').textContent =
         (s.tipo === 'pdf' ? 'PDF' : s.tipo.toUpperCase()) + ' · ' +
@@ -3331,13 +3159,12 @@
       soporteList.appendChild(fila);
     });
 
-    // Al llegar al tope se esconde la zona de carga: no hay nada que soltar.
     soporteDrop.classList.toggle('asc-hidden', soportes.length >= sop().MAX_ARCHIVOS);
   }
 
   soporteInput.addEventListener('change', () => {
     const archivos = Array.from(soporteInput.files || []);
-    soporteInput.value = '';   // permite volver a elegir el mismo archivo
+    soporteInput.value = '';
     if (archivos.length) agregarArchivos(archivos);
   });
 
@@ -3353,7 +3180,6 @@
     pintarSoportes();
   }
 
-  /* Fusiona el consentimiento con lo adjunto. Devuelve los bytes finales. */
   function anexarSoportes(bytesBase) {
     if (!soportes.length) return Promise.resolve(bytesBase);
     if (!hayPdfLib()) {
@@ -3370,8 +3196,6 @@
         }
         const incrustar = (s.tipo === 'png') ? doc.embedPng(s.bytes) : doc.embedJpg(s.bytes);
         return incrustar.then((img) => {
-          // Misma hoja que el formato (A4). La imagen se centra y se ajusta
-          // sin deformarse, dejando un margen.
           const pagina = doc.addPage([595.28, 841.89]);
           const margen = 28;
           const escala = Math.min((pagina.getWidth()  - margen * 2) / img.width,
@@ -3537,14 +3361,7 @@
 
   pintarModo();
 
-  /* =====================================================================
-     ESTADO "DOCUMENTO GENERADO"
-     Al terminar, el formulario NO se limpia: queda tal cual para poder
-     descargar el mismo documento las veces que haga falta. Solo se vacía
-     al pulsar "Generar nuevo consentimiento".
-     Mientras dura ese estado se esconde el botón de generar, para que un
-     segundo clic no vuelva a mandar el mismo correo.
-     ===================================================================== */
+
   let ultimoGenerado = null;   // { bytes, nombreArchivo }
   const btnOtraVez = $('btnDescargarOtraVez');
   const btnNuevo   = $('btnNuevoConsentimiento');
@@ -3583,7 +3400,6 @@
 
     if (modo.descarga) descargar(bytes, nombreArchivo);
 
-    // --- Solo descarga (elegido, o sin envío configurado) ----------------
     if (!modo.envia || !puedeEnviar()) {
       botonOcupado(false, etiquetaEnvio());
       if (modo.descarga) {
@@ -3609,8 +3425,6 @@
       .then(() => {
         ultimoEnvio = null;
         mostrarGenerado(bytes, nombreArchivo);
-        /* Si el formato tiene buzón propio se nombra: quien registra debe
-           saber que ese documento no fue al correo de siempre. */
         const otroBuzon = CONSENT && CONSENT.correo &&
                           CONSENT.correo.trim() &&
                           CONSENT.correo.trim() !== (CFG.ENVIO_CORREO || '').trim();
@@ -3622,7 +3436,6 @@
       })
       .catch((err) => {
         console.error('[Consentimiento] Falló el envío:', err);
-        // El registro queda en memoria: se puede reintentar o descargar.
         ultimoEnvio = { bytes: bytes, nombreArchivo: nombreArchivo, datos: d };
         setAlert('error', resumen + ' PERO NO se pudo enviar (' + err.message +
           '). El registro sigue en memoria: reintente el envío o descargue ' +
@@ -3643,9 +3456,6 @@
   const cardMenores = $('cardMenores');
   const PASOS = [stepConsent, stepPersona];
 
-  /* Primero el documento, después quién firma. El segundo paso se salta
-     cuando el documento admite un solo rol (la hoja de vida, por ejemplo,
-     solo la hace el paciente), así que el total depende del documento. */
   function pasosVisibles() {
     const unSoloRol = CONSENT && rolesDelConsent(CONSENT).length <= 1;
     return unSoloRol ? [stepConsent] : [stepConsent, stepPersona];
@@ -3680,7 +3490,6 @@
     });
   }
 
-  // Solo los roles que admite el documento ya elegido.
   function poblarPersonas() {
     personaChoices.innerHTML = '';
     const lista = rolesDelConsent(CONSENT);
@@ -3694,8 +3503,6 @@
     });
   }
 
-  /* La entidad viene del HTML (data-entidad en el <body>): cada página
-     —consentimiento.html / consentimiento-u.html— fija la suya. */
   function fijarOrg(o) {
     ORG = o;
     appLogo.src = o.logoApp;
@@ -3707,8 +3514,6 @@
     numerarPasos();
   }
 
-  /* Paso 1. Fijado el documento ya se sabe quiénes pueden firmarlo, así que
-     de aquí se decide si el paso 2 tiene sentido. */
   function elegirConsent(c) {
     CONSENT = c;
     $('chosenConsent').textContent = c.label;
@@ -3724,14 +3529,8 @@
     mostrarPaso(stepPersona);
   }
 
-  // Paso 2 (o automático, si el documento admite un solo rol).
   function elegirPersona(t) {
     PERSONA = t;
-    /* El formato puede renombrar el bloque: en la hoja de vida ese primer
-       bloque es la identificación, y "Datos personales" es la sección 1.
-       Pero si el rol abre una tarjeta aparte para el paciente, el bloque
-       principal pasa a ser el de quien firma, así que manda el rol: llamarlo
-       "Datos del beneficiario" cuando lo llena el acompañante confundiría. */
     $('tituloDatos').textContent =
       (!pide('paciente') && CONSENT && CONSENT.tituloDatos) || t.tituloDatos;
     $('chosenPersona').textContent = t.label;
@@ -3768,7 +3567,6 @@
       });
     }
 
-    /* Datos del paciente aparte: lo enciende el rol desde porFormato. */
     const verPaciente = pide('paciente');
     cardPaciente.classList.toggle('asc-hidden', !verPaciente);
     if (verPaciente) {
@@ -3805,8 +3603,6 @@
       buscaProcedimiento.limpiar();
     }
 
-    /* Servicio de alimentación: las casillas se repueblan porque la lista
-       la define el formato. */
     const verAlim = pide('alimentacion');
     cardAlimentacion.classList.toggle('asc-hidden', !verAlim);
     if (verAlim) {
@@ -3818,7 +3614,6 @@
       limpiarAlimentacion();
     }
 
-    // Responsable de la institución: solo lo pide el formato de San Felipe.
     const verResponsable = pide('responsable');
     $('cardResponsable').classList.toggle('asc-hidden', !verResponsable);
     if (!verResponsable) {
@@ -3831,17 +3626,14 @@
     if (verSoporte) pintarSoporte();
     else limpiarSoportes();
 
-    /* La firma es lo normal, así que se pide salvo que el formato diga que
-       no: la hoja de vida no se firma. */
     const verFirma = CONSENT.campos.firma !== false;
     $('cardFirma').classList.toggle('asc-hidden', !verFirma);
     if (!verFirma) firmaPaciente.limpiar();
 
-    // La sede tampoco: una hoja de vida no se registra en una sede.
+
     const verSede = CONSENT.campos.sede !== false;
     $('bloqueSede').classList.toggle('asc-hidden', !verSede);
 
-    // Foto del encabezado: solo los formatos que la usan.
     const verFoto = pide('foto');
     $('campoFoto').classList.toggle('asc-hidden', !verFoto);
     if (!verFoto) limpiarFoto();
@@ -3850,12 +3642,9 @@
     [cardHvPersonales, cardHvFormacion, cardHvExperiencia].forEach((c) =>
       c.classList.toggle('asc-hidden', !verHv));
     if (verHv) {
-      // Arranca con un renglón de cada uno: casi todos tienen al menos uno.
       if (!hvEstudios.filas().length) $('hvAddEstudio').click();
       if (!hvEmpleos.filas().length) $('hvAddEmpleo').click();
     } else {
-      /* Solo lo de la hoja de vida: la foto y la alimentación ya las apagó
-         cada uno su propio bloque más arriba. */
       limpiarHojaVida();
     }
   }
@@ -3867,9 +3656,6 @@
     $('nombres').focus({ preventScroll: true });
   }
 
-  /* Cuántos pasos hay depende del documento, y en el paso 1 todavía no se
-     sabe: ahí se rotula "Paso 1" a secas en vez de prometer un total que
-     puede no cumplirse. */
   function numerarPasos() {
     const visibles = pasosVisibles();
     visibles.forEach((paso, i) => {

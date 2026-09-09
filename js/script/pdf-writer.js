@@ -138,7 +138,7 @@ const PDFDoc = (function () {
   PDFDocument.prototype.paragraph = function (runs, xMM, yMM, widthMM, o) {
     o = o || {};
     const size = o.size || 11;
-    const lh = o.lineHeight || (size * 1.35 / MM); // alto de línea en mm
+    const lh = o.lineHeight || (size * 1.35 / MM); 
     const justify = o.justify !== false;
     const indent = o.hangingIndent || 0;
     const medir = !!o.medir;
@@ -185,7 +185,6 @@ const PDFDoc = (function () {
         const next = ln.words[wi + 1];
         if (w.ul && ulStart === null) ulStart = x;
         const gap = next ? (w.space ? spaceW + extra : 0) : 0;
-        // El subrayado continúa mientras las palabras contiguas lo lleven
         if (w.ul && !(next && next.ul)) {
           if (!medir) this.line(ulStart, y + 1.1, x + ww, y + 1.1, { width: 0.3 });
           ulStart = null;
