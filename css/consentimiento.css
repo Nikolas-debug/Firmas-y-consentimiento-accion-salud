@@ -515,6 +515,83 @@
   font-weight: 600;
 }
 
+/* Control de alimentación: cada comida es una casilla con su cantidad al
+   lado. Un select no sirve porque pueden ser varias a la vez, y una sola
+   cantidad para todas tampoco: la minuta lleva el número de cada comida
+   por separado. */
+.asc-raciones {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 620px) {
+  .asc-raciones { grid-template-columns: repeat(3, 1fr); }
+}
+
+.asc .asc-racion {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  font-size: 15.5px;
+  color: var(--asc-text);
+  background: var(--asc-surface);
+  border: 1px solid var(--asc-border);
+  border-radius: var(--asc-radius);
+  transition: border-color .15s, background .15s;
+}
+.asc .asc-racion:hover { border-color: var(--asc-primary); }
+
+.asc-racion--on {
+  background: var(--asc-surface-2);
+  border-color: var(--asc-primary);
+}
+
+.asc-racion-marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  cursor: pointer;
+}
+.asc-racion-marca input {
+  width: 19px;
+  height: 19px;
+  flex: none;
+  accent-color: var(--asc-primary);
+  cursor: pointer;
+}
+.asc-racion--on .asc-racion-marca { font-weight: 600; }
+
+.asc .asc-racion-cant {
+  flex: none;
+  width: 62px;
+  height: 38px;
+  padding: 0 8px;
+  font-family: var(--asc-font);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--asc-text);
+  background: var(--asc-surface);
+  border: 1px solid var(--asc-border-strong);
+  border-radius: 6px;
+}
+.asc .asc-racion-cant:disabled {
+  color: var(--asc-text-muted);
+  background: var(--asc-surface-2);
+  border-color: var(--asc-border);
+}
+.asc .asc-racion-cant:focus {
+  outline: 2px solid var(--asc-primary);
+  outline-offset: 1px;
+  border-color: var(--asc-primary);
+}
+
+/* Nota que cambia según el tipo de control elegido. */
+.asc .asc-nota-control { margin-top: 10px; min-height: 22px; }
+
 .asc-oculto {
   position: absolute;
   width: 1px; height: 1px;

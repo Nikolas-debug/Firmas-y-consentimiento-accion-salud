@@ -285,26 +285,79 @@
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h1v11M7 2v7M11 2v7"/><path d="M19 2c-1.5 2-2 4-2 6 0 1.5.7 2.5 1.5 3V22"/></svg>
             Servicio de alimentación
           </h3>
+          
+          
 
-          <div class="asc-fields asc-fields--2">
+          <p class="asc-note" style="margin-bottom:20px">
+            Este registro no genera ningún documento: queda guardado en la base de datos.
+            El formato para firmar se descarga después en
+            <a href="reportes-alimentacion.php" target="_blank" rel="noopener">Reportes de alimentación</a>.
+          </p>
+
+          <div class="asc-checks" id="tiposControl" role="radiogroup"
+               aria-label="Tipo de control"></div>
+          <p class="asc-note asc-nota-control" id="notaControl"></p>
+          <p class="asc-error-msg asc-hidden" id="controlError"></p>
+
+          <div class="asc-fields asc-fields--2" style="margin-top:20px">
             <div class="asc-field">
               <label class="asc-label" for="fechaAlimentacion">Fecha de la entrega</label>
               <input class="asc-input" id="fechaAlimentacion" name="fechaAlimentacion" type="date"/>
             </div>
-            <div class="asc-field">
-              <label class="asc-label" for="raciones">Cantidad de raciones</label>
-              <input class="asc-input" id="raciones" name="raciones" type="text"
-                     inputmode="numeric" maxlength="4" placeholder="Ej. 2"/>
+            <div class="asc-field asc-hidden" id="campoDestino">
+              <label class="asc-label" for="destinoIps">IPS de destino</label>
+              <input class="asc-input" id="destinoIps" name="destinoIps" type="text"
+                     maxlength="100" placeholder="Ej. Instituto Neumológico"/>
             </div>
           </div>
 
           <div class="asc-hv-bloque">
-            <p class="asc-hv-titulo">Tipo de alimentación</p>
-            <p class="asc-note" style="margin-bottom:14px">Marque todas las que se entregaron.</p>
-            <div class="asc-checks" id="tiposAlimentacion"></div>
+            <p class="asc-hv-titulo">Tipo de alimentación y cantidad</p>
+            <p class="asc-note" style="margin-bottom:14px">
+              Marque las comidas que se entregaron y escriba cuántas raciones de cada una.
+            </p>
+            <div class="asc-raciones" id="tiposAlimentacion"></div>
             <p class="asc-error-msg asc-hidden" id="alimentacionError"></p>
           </div>
 
+        </section>
+
+        <!-- ==========  DATOS PARA EL FORMATO IMPRESO  ======================
+             Solo con campos.contacto. Son los cuatro datos que pide la
+             Minuta de control de alimentos y que se guardan en la ficha de
+             la persona, no en la entrega: se piden una vez y quedan.
+        ============================================================== -->
+        <section class="asc-card asc-hidden" id="cardContacto">
+          <h3 class="asc-card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            Datos para el formato impreso
+          </h3>
+          <p class="asc-note" style="margin-bottom:18px">
+            Quedan guardados en la ficha de la persona y salen en el encabezado de la
+            Minuta de control de alimentos. Si ya se registraron antes, no hace falta repetirlos.
+          </p>
+
+          <div class="asc-fields asc-fields--2">
+            <div class="asc-field">
+              <label class="asc-label" for="tipoPacienteMinuta">Tipo de paciente</label>
+              <select class="asc-input" id="tipoPacienteMinuta" name="tipoPacienteMinuta"></select>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="epsUsuario">Entidad prestadora de salud</label>
+              <input class="asc-input" id="epsUsuario" name="epsUsuario" type="text"
+                     maxlength="100" placeholder="Ej. COOSALUD"/>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="direccionUsuario">Dirección</label>
+              <input class="asc-input" id="direccionUsuario" name="direccionUsuario" type="text"
+                     maxlength="150" placeholder="Ej. Calle 41 # 12-30"/>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="telefonoUsuario">Teléfono</label>
+              <input class="asc-input" id="telefonoUsuario" name="telefonoUsuario" type="text"
+                     inputmode="numeric" maxlength="30" placeholder="Ej. 3104567890"/>
+            </div>
+          </div>
         </section>
 
         <!-- ==========  HOJA DE VIDA  ==========================================
@@ -761,8 +814,6 @@
         <span id="submitLabel">Generar y enviar consentimiento</span>
       </button>
 
-      <!-- Tras generar, el formulario se queda como está para poder volver a
-           descargar el mismo documento. Se limpia solo al pedir uno nuevo. -->
       <button class="asc-btn asc-btn--ghost asc-btn--big asc-hidden" type="button" id="btnDescargarOtraVez">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
         Descargar de nuevo
@@ -770,16 +821,12 @@
 
       <button class="asc-btn asc-btn--primary asc-btn--big asc-hidden" type="button" id="btnNuevoConsentimiento">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        Generar nuevo consentimiento
+        <span id="btnNuevoLabel">Generar nuevo consentimiento</span>
       </button>
     </div>
   </form>
 
-  <!-- =====================================================================
-       Pantalla de firma. Una sola para todos los campos: se abre desde el
-       botón de cada bloque y devuelve el trazo al que la pidió. El lienzo
-       ocupa casi toda la pantalla, que es lo que necesitan las tabletas.
-       ===================================================================== -->
+  <!--Pantalla de firma.  -->
   <div class="asc-firma-modal asc-hidden" id="firmaModal" role="dialog" aria-modal="true"
        aria-labelledby="firmaModalTitulo">
     <div class="asc-firma-panel">
@@ -806,15 +853,10 @@
 
 </div>
 
-<!-- pdf-lib: solo se usa para anexar el escaneo del documento al final del
-     consentimiento. El PDF del formato lo sigue construyendo pdf-writer.js. -->
+<!-- pdf-lib -->
 <script defer src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 
-<!-- Aviso de carga fallida.
-     Va aquí, en línea y sin defer, para que exista antes que los tres
-     archivos de abajo y siga existiendo aunque alguno de ellos llegue a
-     medias. Sin esto, un archivo incompleto dejaba el paso 1 en blanco: la
-     página se veía bien pero no había tarjetas ni forma de seguir. -->
+<!-- Aviso de carga fallida. -->
 <script>
 window.ascFalloCarga = function (detalle) {
   if (document.getElementById('ascFalloCarga')) return;
@@ -837,12 +879,13 @@ window.ascFalloCarga = function (detalle) {
   zona.insertBefore(caja, zona.firstChild);
 };
 
-/* Los tres archivos son defer, así que ya corrieron cuando salta este
+/* Los cuatro archivos son defer, así que ya corrieron cuando salta este
    evento. Si el módulo no dejó su marca, no llegó al final. */
 document.addEventListener('DOMContentLoaded', function () {
   if (window.__ascListo) return;
   var falta = !window.CONSENT_CONFIG ? 'consentimiento-config.js'
             : (typeof PDFDoc === 'undefined') ? 'pdf-writer.js'
+            : !window.AscApi ? 'api.js'
             : 'consentimiento.js';
   window.ascFalloCarga('no se cargó completo ' + falta);
 });
@@ -850,7 +893,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
 <script defer src="js/script/consentimiento-config.js"></script>
 <script defer src="js/script/pdf-writer.js"></script>
-<script defer src="js/script/consentimiento.js"></script>
+<script defer src="js/script/api.js"></script>
+<script defer src="js/script/consentimiento.js?v=20260924"></script>
 
 </body>
 </html>

@@ -93,22 +93,13 @@
     <path d="M72 38l10 12M76 61l-9 7M67 66l3-28" stroke="#9fd8f2" stroke-width="2.6" stroke-linecap="round"/>
   </symbol>
 
-  <!-- Apoyo de transporte: bus -->
-  <symbol id="ic-consent-transporte" viewBox="0 0 96 96">
-    <rect x="18" y="18" width="60" height="48" rx="8" fill="#eaf4fb" stroke="#3b7ddb" stroke-width="3.2"/>
-    <path d="M24 30h48v14H24z" fill="#7fb8dd"/>
-    <circle cx="32" cy="56" r="4" fill="#3b7ddb"/>
-    <circle cx="64" cy="56" r="4" fill="#3b7ddb"/>
-    <path d="M30 66v6M66 66v6" stroke="#3b7ddb" stroke-width="4" stroke-linecap="round"/>
-    <path d="M14 40h4M78 40h4" stroke="#3b7ddb" stroke-width="3.2" stroke-linecap="round"/>
-  </symbol>
-  <!-- Certificado de alimentación: plato servido, comida caliente -->
+  <!-- Certificado de alimentación: bandeja con cubiertos -->
   <symbol id="ic-consent-alimentacion" viewBox="0 0 96 96">
-    <path d="M18 44h60c0 17-13 30-30 30S18 61 18 44z" fill="#eaf4fb" stroke="#3b7ddb" stroke-width="3.4" stroke-linejoin="round"/>
-    <rect x="12" y="76" width="72" height="8" rx="4" fill="#3b7ddb"/>
-    <path d="M34 44c0-8 6-11 6-16s-5-6-5-6" stroke="#7fb8dd" stroke-width="3.2" stroke-linecap="round" fill="none"/>
-    <path d="M50 44c0-8 6-11 6-16s-5-6-5-6" stroke="#7fb8dd" stroke-width="3.2" stroke-linecap="round" fill="none"/>
-    <path d="M66 44c0-8 6-11 6-16s-5-6-5-6" stroke="#7fb8dd" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <rect x="14" y="60" width="68" height="10" rx="4" fill="#3b7ddb"/>
+    <path d="M22 60a26 26 0 0 1 52 0z" fill="#eaf4fb" stroke="#3b7ddb" stroke-width="3.2" stroke-linejoin="round"/>
+    <circle cx="48" cy="44" r="9" fill="#7fb8dd"/>
+    <path d="M24 20v14M30 20v14M27 34v12" stroke="#3b7ddb" stroke-width="3.2" stroke-linecap="round"/>
+    <path d="M69 20c4 0 5 6 3 10-1 2-3 3-3 3v13" stroke="#3b7ddb" stroke-width="3.2" stroke-linecap="round" fill="none"/>
   </symbol>
   <!-- Hoja de vida: carpeta con una persona y renglones -->
   <symbol id="ic-consent-hoja-vida" viewBox="0 0 96 96">
@@ -278,25 +269,76 @@
             Servicio de alimentación
           </h3>
 
-          <div class="asc-fields asc-fields--2">
+          <p class="asc-note" style="margin-bottom:20px">
+            Este registro no genera ningún documento: queda guardado en la base de datos.
+            El formato para firmar se descarga después en
+            <a href="reportes-alimentacion.php" target="_blank" rel="noopener">Reportes de alimentación</a>.
+          </p>
+
+          <div class="asc-checks" id="tiposControl" role="radiogroup"
+               aria-label="Tipo de control"></div>
+          <p class="asc-note asc-nota-control" id="notaControl"></p>
+          <p class="asc-error-msg asc-hidden" id="controlError"></p>
+
+          <div class="asc-fields asc-fields--2" style="margin-top:20px">
             <div class="asc-field">
               <label class="asc-label" for="fechaAlimentacion">Fecha de la entrega</label>
               <input class="asc-input" id="fechaAlimentacion" name="fechaAlimentacion" type="date"/>
             </div>
-            <div class="asc-field">
-              <label class="asc-label" for="raciones">Cantidad de raciones</label>
-              <input class="asc-input" id="raciones" name="raciones" type="text"
-                     inputmode="numeric" maxlength="4" placeholder="Ej. 2"/>
+            <div class="asc-field asc-hidden" id="campoDestino">
+              <label class="asc-label" for="destinoIps">IPS de destino</label>
+              <input class="asc-input" id="destinoIps" name="destinoIps" type="text"
+                     maxlength="100" placeholder="Ej. Instituto Neumológico"/>
             </div>
           </div>
 
           <div class="asc-hv-bloque">
-            <p class="asc-hv-titulo">Tipo de alimentación</p>
-            <p class="asc-note" style="margin-bottom:14px">Marque todas las que se entregaron.</p>
-            <div class="asc-checks" id="tiposAlimentacion"></div>
+            <p class="asc-hv-titulo">Tipo de alimentación y cantidad</p>
+            <p class="asc-note" style="margin-bottom:14px">
+              Marque las comidas que se entregaron y escriba cuántas raciones de cada una.
+            </p>
+            <div class="asc-raciones" id="tiposAlimentacion"></div>
             <p class="asc-error-msg asc-hidden" id="alimentacionError"></p>
           </div>
 
+        </section>
+
+        <!-- ==========  DATOS PARA EL FORMATO IMPRESO  ======================
+             Solo con campos.contacto. Son los cuatro datos que pide la
+             Minuta de control de alimentos y que se guardan en la ficha de
+             la persona, no en la entrega: se piden una vez y quedan.
+        ============================================================== -->
+        <section class="asc-card asc-hidden" id="cardContacto">
+          <h3 class="asc-card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            Datos para el formato impreso
+          </h3>
+          <p class="asc-note" style="margin-bottom:18px">
+            Quedan guardados en la ficha de la persona y salen en el encabezado de la
+            Minuta de control de alimentos. Si ya se registraron antes, no hace falta repetirlos.
+          </p>
+
+          <div class="asc-fields asc-fields--2">
+            <div class="asc-field">
+              <label class="asc-label" for="tipoPacienteMinuta">Tipo de paciente</label>
+              <select class="asc-input" id="tipoPacienteMinuta" name="tipoPacienteMinuta"></select>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="epsUsuario">Entidad prestadora de salud</label>
+              <input class="asc-input" id="epsUsuario" name="epsUsuario" type="text"
+                     maxlength="100" placeholder="Ej. COOSALUD"/>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="direccionUsuario">Dirección</label>
+              <input class="asc-input" id="direccionUsuario" name="direccionUsuario" type="text"
+                     maxlength="150" placeholder="Ej. Calle 41 # 12-30"/>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="telefonoUsuario">Teléfono</label>
+              <input class="asc-input" id="telefonoUsuario" name="telefonoUsuario" type="text"
+                     inputmode="numeric" maxlength="30" placeholder="Ej. 3104567890"/>
+            </div>
+          </div>
         </section>
 
         <!-- ==========  HOJA DE VIDA  ==========================================
@@ -762,7 +804,7 @@
 
       <button class="asc-btn asc-btn--primary asc-btn--big asc-hidden" type="button" id="btnNuevoConsentimiento">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        Generar nuevo consentimiento
+        <span id="btnNuevoLabel">Generar nuevo consentimiento</span>
       </button>
     </div>
   </form>
@@ -829,12 +871,13 @@ window.ascFalloCarga = function (detalle) {
   zona.insertBefore(caja, zona.firstChild);
 };
 
-/* Los tres archivos son defer, así que ya corrieron cuando salta este
+/* Los cuatro archivos son defer, así que ya corrieron cuando salta este
    evento. Si el módulo no dejó su marca, no llegó al final. */
 document.addEventListener('DOMContentLoaded', function () {
   if (window.__ascListo) return;
   var falta = !window.CONSENT_CONFIG ? 'consentimiento-config.js'
             : (typeof PDFDoc === 'undefined') ? 'pdf-writer.js'
+            : !window.AscApi ? 'api.js'
             : 'consentimiento.js';
   window.ascFalloCarga('no se cargó completo ' + falta);
 });
@@ -842,7 +885,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
 <script defer src="js/script/consentimiento-config.js"></script>
 <script defer src="js/script/pdf-writer.js"></script>
-<script defer src="js/script/consentimiento.js"></script>
+<script defer src="js/script/api.js"></script>
+<script defer src="js/script/consentimiento.js?v=20260924"></script>
 
 </body>
 </html>

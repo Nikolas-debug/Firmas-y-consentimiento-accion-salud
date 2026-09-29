@@ -72,6 +72,8 @@ window.CONSENT_CONFIG = {
       descripcion: 'Hogar de Paso y consulta externa',
       icono: 'ic-consent-pacientes',
       codigo: 'SP-ADM-RG-01',
+      registraPaciente: true,
+
       fechaFormato: '01-04-2026',
       version: '01',
       hoja: { ancho: 215.9, alto: 279.4 },
@@ -449,17 +451,21 @@ window.CONSENT_CONFIG = {
     },
     {
       id: 'alimentacion_sf',
-      label: 'Certificado de alimentación',
-      descripcion: 'Recepción del servicio de alimentación',
+      label: 'Control de alimentación',
+      descripcion: 'Registro de la entrega en la base de datos',
       icono: 'ic-consent-alimentacion',
-      codigo: 'CERTIFICADO-ALIMENTACION',
-      hoja: { ancho: 215.9, alto: 279.4 },
-      bandaKey: 'BANDA_SAN_FELIPE',
-      titulo: 'CERTIFICADO DE RECEPCIÓN DEL SERVICIO DE ALIMENTACIÓN',
-      servicio: 'SUMINISTRO / ENTREGA DE ALIMENTACIÓN',
-      tituloApp: 'Certificado de recepción del servicio de alimentación',
-      leadApp: 'Constancia de la alimentación entregada. Firman quien la recibe y el responsable de la institución.',
-      tituloDatos: 'Datos del beneficiario',
+      codigo: 'CONTROL-ALIMENTACION',
+
+      registro: 'alimentacion',
+      apiRegistrar: 'api/registrar.php',
+
+      tituloApp: 'Control de alimentación',
+      leadApp: 'Registro de la alimentación entregada. Se busca al paciente por su ' +
+               'documento: solo aparecen quienes ya firmaron el consentimiento informado. ' +
+               'La firma de quien recibe se toma en pantalla y queda guardada junto con el ' +
+               'registro; se ve en el formato que se descarga en Reportes.',
+      tituloDatos: 'Datos de quien recibe',
+
       campos: {
         lugarExpedicion: false,
         menores:         false,
@@ -468,16 +474,48 @@ window.CONSENT_CONFIG = {
         entidad:         false,
         representado:    false,
         atencion:        false,
+        sede:            false,
         firma:           true,
-        responsable:     true,
-        alimentacion:    true
+        responsable:     false,
+        alimentacion:    true,
+        contacto:        true
       },
+
+  
       TIPOS_ALIMENTACION: [
-        { id: 'desayuno',   label: 'Desayuno' },
-        { id: 'almuerzo',   label: 'Almuerzo' },
-        { id: 'cena',       label: 'Cena' },
-        { id: 'refrigerio', label: 'Refrigerio' }
-      ]
+        { id: 'desayuno', label: 'Desayuno' },
+        { id: 'almuerzo', label: 'Almuerzo' },
+        { id: 'cena',     label: 'Cena' }
+      ],
+
+      TIPOS_CONTROL: [
+        { id: 'general', label: 'Control general', pideDestino: true,
+          nota: 'Sale en la Minuta de control de alimentos.' },
+        { id: 'confort', label: 'Confort Care', pideDestino: true,
+          nota: 'Sale en la Constancia CONS-RVAS-005.' }
+      ],
+
+      EPS_DESTINO: [
+        'Davita',
+        'Instituto del riñón',
+        'Fresenius',
+        'Nefrouros',
+        'Instituto neumológico'
+      ],
+      ENTIDADES_SALUD: [
+        'Comfortcare',
+        'Coosalud',
+        'Proteger',
+        'Familiar de Colombia'
+      ],
+
+      TIPOS_PACIENTE: [
+        { id: 'EVENTO',        label: 'Evento' },
+        { id: 'HOGAR DE PASO', label: 'Hogar de paso' },
+        { id: 'OTROS',         label: 'Otros' }
+      ],
+
+      MAX_RACIONES: 99,
     },
     {
       id: 'transporte_creas',
@@ -552,7 +590,13 @@ window.CONSENT_CONFIG = {
       logoPdfKey: 'LOGO_SAN_FELIPE',
       razonSocial: 'la Unidad San Felipe',
       encabezadoDefault: 'UNIDAD SAN FELIPE',
-      consentimientos: ['imagen', 'pacientes_sf', 'alimentacion_sf'],
+      // El control de alimentación salió de esta lista: dejó de ser un
+      // documento que se firma y se descarga. Ahora vive en su propia
+      // página (control-alimentacion.php), detrás del mismo ingreso que
+      // Reportes, y el paciente se busca ahí en vez de digitarse. La
+      // definición del formato se conserva más arriba porque de ella salen
+      // las listas EPS_DESTINO y ENTIDADES_SALUD.
+      consentimientos: ['imagen', 'pacientes_sf'],
       RESPONSABLES: [
         { nombre: 'YAJAIRA MARIA PETRO JIMENEZ',        documento: '50914875' },
         { nombre: 'MARIA ALEJANDRA HERNANDEZ ESPINOSA', documento: '1002999614' }
@@ -612,7 +656,7 @@ window.CONSENT_CONFIG = {
         pacientes_sf:         false,
         certificado_atencion: true,
         hoja_vida:            false,
-        alimentacion_sf:      true,
+        alimentacion_sf:      false,
         transporte_creas:     true
       },
 
@@ -621,10 +665,10 @@ window.CONSENT_CONFIG = {
           campos: { paciente: true },
           pdf: { firmaCertificado: 'FIRMA ACOMPAÑANTE O FAMILIAR' }
         },
-        
+      
         alimentacion_sf: {
-          campos: { paciente: true },
-          pdf: { firmaCertificado: 'ACOMPAÑANTE O FAMILIAR' }
+          campos: { paciente: false },
+          recibe: 'ACOMPANANTE'
         }
       }
     }
@@ -664,7 +708,7 @@ window.CONSENT_CONFIG = {
   ENVIAR_ACTIVO: true,
 
   // URL de la aplicación web del Apps Script
-  ENVIO_URL:     'https://script.google.com/macros/s/AKfycbz3bSDcPwhcx02alD6FsVyRKUF-iA2NKOgM5RGLe5scPMZL896CowTaFMGh3LRDYRLmYw/exec',
+  ENVIO_URL:     'https://script.google.com/macros/s/AKfycbxnsYYJSXpZ8aOUgn3MtFKaQZ1kx7ijsd2OS-NCrjacDsJE-z_5hj7khNWBDJ42JrmY3w/exec',
 
   // En Apps Script
   ENVIO_SECRETO: 'CLAVE-SECRETA-PARA-ENVIO-DE-CORREOS-CONSENTIMIENTOS',

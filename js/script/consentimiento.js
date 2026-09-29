@@ -86,6 +86,15 @@
   }
   const titleCase = (s) => s.replace(/\s+/g, ' ').trim();
 
+  /* Para cuando se arma HTML con innerHTML a partir de la configuración.
+     Los textos los escribimos nosotros, pero un apóstrofo o un < en una
+     etiqueta rompería el atributo sin avisar. */
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   function filtrarEntrada(input, patron) {
     input.addEventListener('input', () => {
       const antes = input.value;
@@ -161,6 +170,17 @@
   }
 
   selSede.addEventListener('change', aplicarSede);
+
+  /* La fecha de hoy en hora local, no en UTC.
+     toISOString() convierte a UTC: en Colombia, de 7 de la noche en adelante
+     devolvía la fecha del día siguiente, y la entrega quedaba registrada un
+     día después de cuando se hizo. */
+  function hoyISO(d) {
+    const f = d || new Date();
+    return f.getFullYear() + '-' +
+           String(f.getMonth() + 1).padStart(2, '0') + '-' +
+           String(f.getDate()).padStart(2, '0');
+  }
 
   function refrescarFecha() {
     const f = new Date();
@@ -1139,50 +1159,222 @@
     }
   });
 
+  /* ==================================================================
+   *  CONTROL DE ALIMENTACIÓN
+   *
+   *  A diferencia del resto del módulo, este formato no arma un PDF: lo que
+   *  se llena aquí se guarda en la base de datos, y los dos formatos en
+   *  PDF se descargan después desde reportes-alimentacion.php.
+   *
+   *  El tipo de control decide en cuál de los dos va a salir el registro:
+   *  «Confort Care» guarda la IPS de destino, el control general la deja
+   *  vacía. Esa es la única diferencia entre los dos, y por eso la
+   *  exportación los separa por ese campo.
+   * ================================================================ */
+
   const cardAlimentacion = $('cardAlimentacion');
+  const cardContacto     = $('cardContacto');
   const tiposAlimCont    = $('tiposAlimentacion');
   const alimError        = $('alimentacionError');
-  const inpRaciones      = $('raciones');
+  const tiposControlCont = $('tiposControl');
+  const notaControl      = $('notaControl');
+  const controlError     = $('controlError');
+  const campoDestino     = $('campoDestino');
+  const inpDestino       = $('destinoIps');
+  const selTipoMinuta    = $('tipoPacienteMinuta');
 
-  const TIPOS_ALIM = () => (CONSENT && CONSENT.TIPOS_ALIMENTACION) || [];
+  const TIPOS_ALIM    = () => (CONSENT && CONSENT.TIPOS_ALIMENTACION) || [];
+  const TIPOS_CONTROL = () => (CONSENT && CONSENT.TIPOS_CONTROL) || [];
+  const MAX_RACIONES  = () => (CONSENT && CONSENT.MAX_RACIONES) || 99;
 
-  function poblarTiposAlimentacion() {
-    const marcados = tiposAlimentacionMarcados().map((t) => t.id);
-    tiposAlimCont.innerHTML = '';
-    TIPOS_ALIM().forEach((t) => {
+  /* --- tipo de control (general / Confort Care) --------------------- */
+
+  function poblarTiposControl() {
+    const elegido = controlElegido();
+    tiposControlCont.innerHTML = '';
+
+    TIPOS_CONTROL().forEach((t, i) => {
       const et = document.createElement('label');
       et.className = 'asc-check';
-      et.innerHTML = '<input type="checkbox" name="tipoAlimentacion" value="' + t.id +
-                     '" data-label="' + t.label + '"/><span>' + t.label + '</span>';
-      const casilla = et.querySelector('input');
-      casilla.checked = marcados.indexOf(t.id) !== -1;
-      et.classList.toggle('asc-check--on', casilla.checked);
-      casilla.addEventListener('change', () => {
-        et.classList.toggle('asc-check--on', casilla.checked);
-        if (casilla.checked) alimError.classList.add('asc-hidden');
+      et.innerHTML = '<input type="radio" name="tipoControl" value="' + t.id +
+                     '" data-destino="' + (t.pideDestino ? '1' : '') +
+                     '" data-nota="' + esc(t.nota || '') + '"/>' +
+                     '<span>' + esc(t.label) + '</span>';
+
+      const radio = et.querySelector('input');
+      radio.checked = elegido ? elegido === t.id : i === 0;
+      et.classList.toggle('asc-check--on', radio.checked);
+
+      radio.addEventListener('change', () => {
+        tiposControlCont.querySelectorAll('.asc-check').forEach((otra) => {
+          otra.classList.toggle('asc-check--on', otra.querySelector('input').checked);
+        });
+        controlError.classList.add('asc-hidden');
+        aplicarTipoControl();
       });
-      tiposAlimCont.appendChild(et);
+
+      tiposControlCont.appendChild(et);
+    });
+
+    aplicarTipoControl();
+  }
+
+  function controlElegido() {
+    const m = tiposControlCont.querySelector('input:checked');
+    return m ? m.value : '';
+  }
+
+  function pideDestino() {
+    const m = tiposControlCont.querySelector('input:checked');
+    return !!(m && m.dataset.destino);
+  }
+
+  /** Muestra u oculta la IPS y cambia la nota de abajo. */
+  function aplicarTipoControl() {
+    const m = tiposControlCont.querySelector('input:checked');
+    notaControl.textContent = m ? (m.dataset.nota || '') : '';
+
+    const conIps = pideDestino();
+    campoDestino.classList.toggle('asc-hidden', !conIps);
+    if (!conIps) {
+      inpDestino.value = '';
+      clearError(inpDestino);
+    }
+  }
+
+  /* --- comidas y cantidades ----------------------------------------- */
+
+  function poblarTiposAlimentacion() {
+    const previo = {};
+    raciones().forEach((r) => { previo[r.id] = r.cantidad; });
+
+    tiposAlimCont.innerHTML = '';
+
+    TIPOS_ALIM().forEach((t) => {
+      const caja = document.createElement('div');
+      caja.className = 'asc-racion';
+      caja.innerHTML =
+        '<label class="asc-racion-marca">' +
+          '<input type="checkbox" name="tipoAlimentacion" value="' + t.id +
+          '" data-label="' + esc(t.label) + '"/>' +
+          '<span>' + esc(t.label) + '</span>' +
+        '</label>' +
+        '<input class="asc-racion-cant" type="text" inputmode="numeric" maxlength="2" ' +
+               'aria-label="Raciones de ' + esc(t.label.toLowerCase()) + '" disabled/>';
+
+      const casilla = caja.querySelector('input[type="checkbox"]');
+      const cant    = caja.querySelector('.asc-racion-cant');
+
+      filtrarEntrada(cant, NO_DIGITOS);
+
+      // Marcar la comida habilita su cantidad y la deja en 1, que es el caso
+      // normal. Desmarcarla la borra: así no queda un número suelto de una
+      // comida que no se entregó.
+      const sincronizar = (foco) => {
+        cant.disabled = !casilla.checked;
+        caja.classList.toggle('asc-racion--on', casilla.checked);
+        if (casilla.checked) {
+          if (!cant.value) cant.value = '1';
+          alimError.classList.add('asc-hidden');
+          if (foco) cant.focus();
+        } else {
+          cant.value = '';
+          clearError(cant);
+        }
+      };
+
+      casilla.checked = previo[t.id] !== undefined;
+      if (casilla.checked) cant.value = String(previo[t.id]);
+      sincronizar(false);
+
+      casilla.addEventListener('change', () => sincronizar(true));
+
+      // Escribir 0 o borrar la cantidad equivale a no haber entregado esa
+      // comida: se desmarca la casilla sola.
+      cant.addEventListener('blur', () => {
+        if (!casilla.checked) return;
+        const n = parseInt(cant.value, 10);
+        if (!cant.value || !isFinite(n) || n < 1) {
+          casilla.checked = false;
+          sincronizar(false);
+        }
+      });
+
+      tiposAlimCont.appendChild(caja);
     });
   }
 
-  function tiposAlimentacionMarcados() {
-    return Array.from(tiposAlimCont.querySelectorAll('input:checked'))
-      .map((c) => ({ id: c.value, label: c.dataset.label }));
+  /** Las comidas marcadas, con su cantidad. */
+  function raciones() {
+    return Array.from(tiposAlimCont.querySelectorAll('.asc-racion'))
+      .map((caja) => {
+        const casilla = caja.querySelector('input[type="checkbox"]');
+        const cant    = caja.querySelector('.asc-racion-cant');
+        if (!casilla || !casilla.checked) return null;
+        const n = parseInt(cant.value, 10);
+        return {
+          id: casilla.value,
+          label: casilla.dataset.label,
+          cantidad: isFinite(n) ? n : 0,
+          campo: cant
+        };
+      })
+      .filter(Boolean);
+  }
+
+  /* --- datos de la ficha -------------------------------------------- */
+
+  function poblarTiposPaciente() {
+    const previo = selTipoMinuta.value;
+    selTipoMinuta.innerHTML = '<option value="">Sin especificar</option>';
+    ((CONSENT && CONSENT.TIPOS_PACIENTE) || []).forEach((t) => {
+      const op = document.createElement('option');
+      op.value = t.id;
+      op.textContent = t.label;
+      selTipoMinuta.appendChild(op);
+    });
+    selTipoMinuta.value = previo;
   }
 
   function limpiarAlimentacion() {
-    tiposAlimCont.querySelectorAll('input').forEach((c) => {
+    tiposAlimCont.querySelectorAll('input[type="checkbox"]').forEach((c) => {
       c.checked = false;
-      c.parentElement.classList.remove('asc-check--on');
+    });
+    tiposAlimCont.querySelectorAll('.asc-racion').forEach((caja) => {
+      caja.classList.remove('asc-racion--on');
+      const cant = caja.querySelector('.asc-racion-cant');
+      if (cant) { cant.value = ''; cant.disabled = true; clearError(cant); }
     });
     alimError.classList.add('asc-hidden');
-    inpRaciones.value = '';
-    clearError(inpRaciones);
+    controlError.classList.add('asc-hidden');
+
+    inpDestino.value = '';
+    clearError(inpDestino);
+
     $('fechaAlimentacion').value = '';
     clearError($('fechaAlimentacion'));
+
+    // El tipo de control vuelve al primero, no se conserva: dos registros
+    // seguidos de distinto tipo son el error fácil de cometer.
+    const primero = tiposControlCont.querySelector('input');
+    if (primero) { primero.checked = true; }
+    tiposControlCont.querySelectorAll('.asc-check').forEach((et) => {
+      et.classList.toggle('asc-check--on', et.querySelector('input').checked);
+    });
+    aplicarTipoControl();
   }
 
-  filtrarEntrada(inpRaciones, NO_DIGITOS);
+  function limpiarContacto() {
+    selTipoMinuta.value = '';
+    ['direccionUsuario', 'telefonoUsuario', 'epsUsuario'].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.value = '';
+      clearError(el);
+    });
+  }
+
+  filtrarEntrada($('telefonoUsuario'), /[^0-9+\-() ]+/g);
 
   const CLAVE_FIRMA = 'asc_firma_responsable';
   function recordarFirma(f) {
@@ -1261,6 +1453,10 @@
         pintar();
       },
       jpeg: () => (firma ? firma.jpeg : null),
+      // Data URL PNG completa (o null): es lo que se guarda en el control de
+      // alimentación, porque para ese trazo (línea oscura fina sobre blanco)
+      // pesa bastante menos que el JPEG.
+      png: () => (firma ? firma.png : null),
       redimensionar: () => {}
     };
   }
@@ -2112,6 +2308,12 @@
   }
 
   const M_HV = {
+    /* Cuántos renglones en blanco trae el formato impreso. El PDF los
+       reproduce siempre: se llenan los que haya y el resto queda para
+       escribir a mano. */
+    FILAS_ESTUDIO:   5,
+    FILAS_IDIOMA:    3,
+    BLOQUES_EMPLEO:  4,
     X0: 12, X1: 203.9,      
     FILA: 6.4,             
     PIE: 264     
@@ -2156,7 +2358,22 @@
     const CAB = { y: 10, alto: F.alto + 4 };
     const FOTO_X = X1 - 3 - F.ancho;
 
-    function encabezado() {
+    /* La primera página lleva el marco con el escudo y el recuadro de la
+       foto; de la segunda en adelante solo el título centrado, como el
+       formato impreso. Así la continuación no gasta los 38 mm del marco. */
+    function encabezado(primera) {
+      if (!primera) {
+        doc.text('FORMATO ÚNICO', W / 2, 13, { size: 12, align: 'center', rgb: C_HV.texto });
+        doc.text('HOJA DE VIDA', W / 2, 20,
+                 { size: 17, bold: true, align: 'center', rgb: C_HV.texto });
+        doc.text('Persona Natural', W / 2, 25.1,
+                 { size: 10.5, align: 'center', rgb: C_HV.texto });
+        doc.text(d.consent.leyes || '', W / 2, 28.7,
+                 { size: 7.6, align: 'center', rgb: C_HV.texto });
+        y = 35;
+        return;
+      }
+
       doc.rect(X0, CAB.y, ANCHO, CAB.alto, { width: 1.1, rgb: C_HV.marco });
 
       const lh = 20, lw = lh * d.logo.w / d.logo.h;
@@ -2194,7 +2411,7 @@
     }
 
     function fila(celdas, alto) {
-      const h = alto || M_HV.FILA * 1.55;
+      const h = alto || M_HV.FILA * 1.42;   // el alto de fila del impreso
       let x = X0;
       const total = celdas.reduce((s, c) => s + c.ancho, 0);
       celdas.forEach((c) => {
@@ -2233,14 +2450,14 @@
       if (y + alto <= M_HV.PIE) return;
       pie();
       doc.addPage();
-      encabezado();
+      encabezado(false);
     }
 
     function pie() {
       doc.text(String(doc.pageCount()), X1, 272, { size: 8.5, align: 'right', rgb: C_HV.texto });
     }
 
-    encabezado();
+    encabezado(true);
 
     seccion(1, 'DATOS PERSONALES');
 
@@ -2263,12 +2480,16 @@
     ]);
 
 
-    if (hv.libreta) {
+    /* A las mujeres no se les pide, así que en su hoja la fila no se dibuja.
+       A los hombres sí: sale siempre, en blanco si no la registraron. */
+    if (hv.sexo === 'M') {
+      const lib = hv.libreta || {};
       fila([
         { ancho: 1.6, etiqueta: 'LIBRETA MILITAR',
-          valor: hv.libreta.clase === '1' ? 'Primera clase' : 'Segunda clase' },
-        { ancho: 1.6, etiqueta: 'NÚMERO', valor: hv.libreta.numero || '' },
-        { ancho: 1, etiqueta: 'D.M.', valor: hv.libreta.dm || '' }
+          valor: lib.clase === '1' ? 'Primera clase'
+               : lib.clase === '2' ? 'Segunda clase' : '' },
+        { ancho: 1.6, etiqueta: 'NÚMERO', valor: lib.numero || '' },
+        { ancho: 1, etiqueta: 'D.M.', valor: lib.dm || '' }
       ]);
     }
 
@@ -2291,229 +2512,249 @@
       { ancho: 2, etiqueta: 'EMAIL', valor: hv.email || '' }
     ]);
 
-    const hayBasica = hv.grado || hv.tituloObtenido || hv.fechaGrado;
-    if (hayBasica || (hv.estudios || []).length) {
-      y += 5;
-      espacio(30);
-      seccion(2, 'FORMACIÓN ACADÉMICA');
+    /* ---------- 2. Formación académica ----------
+       El formato impreso siempre trae estas secciones completas, con sus
+       renglones en blanco para llenar a mano. Se reproducen igual: se pinta
+       lo que la persona diligenció y el resto queda vacío. */
+    y += 3;
+    espacio(58);
+    seccion(2, 'FORMACIÓN ACADÉMICA');
 
-      if (hayBasica) {
-        subtitulo('EDUCACIÓN BÁSICA Y MEDIA');
-        fila([
-          { ancho: 1, etiqueta: 'ÚLTIMO GRADO APROBADO',
-            valor: hv.grado ? hv.grado + 'º' : '' },
-          { ancho: 1.6, etiqueta: 'TÍTULO OBTENIDO', valor: hv.tituloObtenido || '' },
-          { ancho: 1, etiqueta: 'FECHA DE GRADO', valor: mesAnioHV(hv.fechaGrado) }
-        ]);
-      }
+    subtitulo('EDUCACIÓN BÁSICA Y MEDIA');
 
-      if ((hv.estudios || []).length) {
-        y += 3;
-        espacio(22);
-        subtitulo('EDUCACIÓN SUPERIOR (PREGRADO Y POSTGRADO)');
+    /* Las dos líneas de instrucciones del original, palabra por palabra. */
+    doc.rect(X0, y, ANCHO, 9.4, { width: 0.4, rgb: C_HV.marco });
+    doc.text('MARQUE CON UNA X EL ÚLTIMO GRADO APROBADO ( LOS GRADOS DE 1o. A 6o. DE ' +
+             'BACHILLERATO EQUIVALEN A LOS GRADOS 6o. A 11o.', X0 + 1.6, y + 3.4,
+             { size: 5.6, rgb: C_HV.texto });
+    doc.text('DE EDUCACIÓN BÁSICA SECUNDARIA Y MEDIA )', X0 + 1.6, y + 7.2,
+             { size: 5.6, rgb: C_HV.texto });
+    y += 9.4;
 
-        const COLS = [
-          { ancho: 0.75, t: 'MODALIDAD' },
-          { ancho: 0.6,  t: 'SEMESTRES' },
-          { ancho: 0.55, t: 'GRADUADO' },
-          { ancho: 2.2,  t: 'NOMBRE DE LOS ESTUDIOS' },
-          { ancho: 0.7,  t: 'TERMINACIÓN' },
-          { ancho: 0.9,  t: 'No. TARJETA' }
-        ];
-        const total = COLS.reduce((s, c) => s + c.ancho, 0);
-        let x = X0;
-        COLS.forEach((c) => {
-          const w = ANCHO * c.ancho / total;
-          doc.rect(x, y, w, 5.4, { relleno: C_HV.fondo, width: 0.4, rgb: C_HV.marco });
-          doc.text(c.t, x + w / 2, y + 3.7,
-                   { size: 5.9, bold: true, align: 'center', rgb: C_HV.texto });
-          x += w;
-        });
-        y += 5.4;
+    /* Rejilla de grados: PRIMARIA 1-5, SECUNDARIA 6-9, MEDIA 10-11, con una
+       X en el que se aprobó. A la derecha, título y fecha de grado. */
+    const GRADOS = ['1o.', '2o.', '3o.', '4o.', '5o.', '6o.', '7o.', '8o.', '9o.', '10', '11'];
+    const REJ_X = X0 + 6, CELDA = 7.4;
+    const REJ_W = CELDA * GRADOS.length;
+    const DER_X = REJ_X + REJ_W + 3;
+    const H1 = 4.6, H2 = 4.6, H3 = 5.6;
 
-        hv.estudios.forEach((e) => {
-          espacio(M_HV.FILA);
-          const vals = [e.modalidad, e.semestres, e.graduado === 'SI' ? 'SÍ' : 'NO',
-                        e.estudios, mesAnioHV(e.terminacion), e.tarjeta || ''];
-          let cx = X0;
-          COLS.forEach((c, i) => {
-            const w = ANCHO * c.ancho / total;
-            doc.rect(cx, y, w, M_HV.FILA, { width: 0.4, rgb: C_HV.marco });
-            const centrado = (i !== 3);
-            doc.text(recortar(String(vals[i] || ''), w - 2.4, 7.8),
-                     centrado ? cx + w / 2 : cx + 1.4, y + M_HV.FILA - 2.1,
-                     { size: 7.8, align: centrado ? 'center' : undefined, rgb: C_HV.texto });
-            cx += w;
-          });
-          y += M_HV.FILA;
-        });
-      }
+    doc.rect(REJ_X, y, REJ_W, H1, { relleno: C_HV.fondo, width: 0.4, rgb: C_HV.marco });
+    doc.text('EDUCACIÓN BÁSICA', REJ_X + REJ_W / 2, y + 3.3,
+             { size: 6, italic: true, align: 'center', rgb: C_HV.texto });
+    doc.rect(DER_X, y, X1 - DER_X, H1, { width: 0.4, rgb: C_HV.marco });
+    doc.text('TÍTULO OBTENIDO:', DER_X + 1.6, y + 3.2,
+             { size: 6, italic: true, rgb: C_HV.tenue });
+    if (hv.tituloObtenido) {
+      doc.text(recortar(hv.tituloObtenido, X1 - DER_X - 34, 7.6), DER_X + 27, y + 3.3,
+               { size: 7.6, rgb: C_HV.texto });
     }
-    if ((hv.empleos || []).length) {
-      y += 5;
-      espacio(40);
-      seccion(3, 'EXPERIENCIA LABORAL');
 
-      hv.empleos.forEach((e, i) => {
-        espacio(5 + M_HV.FILA * 1.55 * 4);
-        subtitulo(i === 0 ? 'EMPLEO ACTUAL O CONTRATO VIGENTE'
-                          : 'EMPLEO O CONTRATO ANTERIOR');
-        fila([
-          { ancho: 2, etiqueta: 'EMPRESA O ENTIDAD', valor: e.empresa },
-          { ancho: 0.8, etiqueta: 'NATURALEZA',
-            valor: e.naturaleza === 'PUBLICA' ? 'PÚBLICA' : 'PRIVADA' },
-          { ancho: 0.9, etiqueta: 'PAÍS', valor: e.pais }
-        ]);
-        fila([
-          { ancho: 1, etiqueta: 'DEPARTAMENTO', valor: e.depto },
-          { ancho: 1, etiqueta: 'MUNICIPIO', valor: e.municipio },
-          { ancho: 1.3, etiqueta: 'CORREO ELECTRÓNICO ENTIDAD', valor: e.correo }
-        ]);
-        fila([
-          { ancho: 1.1, etiqueta: 'TELÉFONOS', valor: e.telefonos },
-          { ancho: 1, etiqueta: 'FECHA DE INGRESO', valor: fechaCortaHV(e.ingreso) },
-          { ancho: 1, etiqueta: 'FECHA DE RETIRO',
-            valor: e.retiro ? fechaCortaHV(e.retiro) : 'Actual' }
-        ]);
-        fila([
-          { ancho: 1.2, etiqueta: 'CARGO O CONTRATO', valor: e.cargo },
-          { ancho: 1, etiqueta: 'DEPENDENCIA', valor: e.dependencia },
-          { ancho: 1.1, etiqueta: 'DIRECCIÓN', valor: e.direccion }
-        ]);
-        y += 2.2;
+    // Segunda banda: los tres ciclos, con el ancho que les toca.
+    const CICLOS = [
+      { t: 'PRIMARIA',    n: 5 },
+      { t: 'SECUNDARIA',  n: 4 },
+      { t: 'MEDIA',       n: 2 }
+    ];
+    let cx = REJ_X;
+    CICLOS.forEach((c) => {
+      const w = CELDA * c.n;
+      doc.rect(cx, y + H1, w, H2, { relleno: C_HV.fondo, width: 0.4, rgb: C_HV.marco });
+      doc.text(c.t, cx + w / 2, y + H1 + 3.2,
+               { size: 5.6, italic: true, align: 'center', rgb: C_HV.texto });
+      cx += w;
+    });
+    doc.rect(DER_X, y + H1, X1 - DER_X, H2, { relleno: C_HV.fondo, width: 0.4, rgb: C_HV.marco });
+    doc.text('FECHA DE GRADO', DER_X + 1.6, y + H1 + 3.2,
+             { size: 6, italic: true, rgb: C_HV.texto });
+
+    // Tercera banda: una casilla por grado; la X marca el aprobado.
+    GRADOS.forEach((g, i) => {
+      const gx = REJ_X + CELDA * i;
+      doc.rect(gx, y + H1 + H2, CELDA, H3, { width: 0.4, rgb: C_HV.marco });
+      doc.text(g, gx + CELDA / 2, y + H1 + H2 + 3.9,
+               { size: 5.6, align: 'center', rgb: C_HV.tenue });
+      if (hv.grado && String(i + 1) === String(hv.grado)) {
+        doc.text('X', gx + CELDA / 2, y + H1 + H2 + 4.2,
+                 { size: 8.4, bold: true, align: 'center', rgb: C_HV.texto });
+      }
+    });
+    doc.rect(DER_X, y + H1 + H2, X1 - DER_X, H3, { width: 0.4, rgb: C_HV.marco });
+    const fg = partesFecha(hv.fechaGrado);
+    const yMes = y + H1 + H2 + 3.9;
+    doc.text('MES', DER_X + 8, yMes, { size: 7.4, rgb: C_HV.texto });
+    doc.rect(DER_X + 17, y + H1 + H2 + 1.1, 9, H3 - 2.2, { width: 0.3, rgb: C_HV.marco });
+    if (fg) doc.text(fg.m, DER_X + 21.5, yMes, { size: 7.4, align: 'center', rgb: C_HV.texto });
+    doc.text('AÑO', DER_X + 31, yMes, { size: 7.4, rgb: C_HV.texto });
+    doc.rect(DER_X + 40, y + H1 + H2 + 1.1, 14, H3 - 2.2, { width: 0.3, rgb: C_HV.marco });
+    if (fg) doc.text(fg.a, DER_X + 47, yMes, { size: 7.4, align: 'center', rgb: C_HV.texto });
+
+    y += H1 + H2 + H3 + 3;
+
+    /* ---------- Educación superior ----------
+       Se reserva el bloque completo —leyenda, cabecera y renglones— para que
+       no quede la cabecera sola al final de una página. */
+    const estudios = hv.estudios || [];
+    const nEst = Math.max(M_HV.FILAS_ESTUDIO, estudios.length);
+    espacio(5 + 17.2 + 5.4 + nEst * M_HV.FILA);
+    subtitulo('EDUCACION SUPERIOR (PREGRADO Y POSTGRADO)');
+
+    // La leyenda de modalidades y las instrucciones, como en el impreso.
+    doc.rect(X0, y, ANCHO, 17.2, { width: 0.4, rgb: C_HV.marco });
+    doc.text('DILIGENCIE ESTE PUNTO EN ESTRICTO ORDEN CRONOLOGICO, EN MODALIDAD ACADEMICA',
+             X0 + 1.6, y + 3.4, { size: 5.6, rgb: C_HV.texto });
+    const LEY = [
+      [['TC', '(TÉCNICA),'], ['TL', '(TECNOLÓGICA),'], ['TE', '(TECNOLÓGICA ESPECIALIZADA),'], ['UN', '(UNIVERSITARIA),']],
+      [['ES', '(ESPECIALIZACIÓN),'], ['MG', '(MAESTRÍA O MAGISTER),'], ['DOC', '(DOCTORADO O PHD),'], null]
+    ];
+    const COLX = [X0 + 1.6, X0 + 48, X0 + 96, X0 + 150];
+    LEY.forEach((filaLey, f) => {
+      filaLey.forEach((par, c) => {
+        if (!par) return;
+        const yy = y + 7.4 + f * 3.6;
+        const fin = doc.text(par[0], COLX[c], yy, { size: 5.6, bold: true, rgb: C_HV.texto });
+        doc.text(' ' + par[1], fin + 0.6, yy, { size: 5.6, rgb: C_HV.texto });
       });
+    });
+    doc.text('RELACIONE AL FRENTE EL NUMERO DE LA TARJETA PROFESIONAL (SI ESTA HA SIDO ' +
+             'PREVISTA EN UNA LEY).', X0 + 1.6, y + 15.6, { size: 5.6, rgb: C_HV.texto });
+    y += 17.2;
+
+    const COLS = [
+      { ancho: 0.75, t: 'MODALIDAD' },
+      { ancho: 0.6,  t: 'SEMESTRES' },
+      { ancho: 0.55, t: 'GRADUADO' },
+      { ancho: 2.2,  t: 'NOMBRE DE LOS ESTUDIOS' },
+      { ancho: 0.7,  t: 'TERMINACIÓN' },
+      { ancho: 0.9,  t: 'No. TARJETA' }
+    ];
+    const totalC = COLS.reduce((s, c) => s + c.ancho, 0);
+    let hx = X0;
+    COLS.forEach((c) => {
+      const w = ANCHO * c.ancho / totalC;
+      doc.rect(hx, y, w, 5.4, { relleno: C_HV.fondo, width: 0.4, rgb: C_HV.marco });
+      doc.text(c.t, hx + w / 2, y + 3.7,
+               { size: 5.9, bold: true, align: 'center', rgb: C_HV.texto });
+      hx += w;
+    });
+    y += 5.4;
+
+    /* Siempre los renglones del impreso como mínimo, y más si la persona
+       registró más: el formulario admite 6 y el formato trae 5, así que sin
+       este máximo el sexto se perdería en silencio. */
+    for (let r = 0; r < nEst; r++) {
+      const e = estudios[r];
+      const vals = e
+        ? [e.modalidad, e.semestres, e.graduado === 'SI' ? 'SÍ' : 'NO',
+           e.estudios, mesAnioHV(e.terminacion), e.tarjeta || '']
+        : ['', '', '', '', '', ''];
+      let ex = X0;
+      COLS.forEach((c, i) => {
+        const w = ANCHO * c.ancho / totalC;
+        doc.rect(ex, y, w, M_HV.FILA, { width: 0.4, rgb: C_HV.marco });
+        if (vals[i]) {
+          const centrado = (i !== 3);
+          doc.text(recortar(String(vals[i]), w - 2.4, 7.8),
+                   centrado ? ex + w / 2 : ex + 1.4, y + M_HV.FILA - 2.1,
+                   { size: 7.8, align: centrado ? 'center' : undefined, rgb: C_HV.texto });
+        }
+        ex += w;
+      });
+      y += M_HV.FILA;
     }
+
+    /* ---------- Idiomas ----------
+       El formulario no los pide: la rejilla va en blanco, para llenar a mano
+       igual que en el formato impreso. */
+    y += 3;
+    // El bloque entero de una vez: partirlo dejaba un renglón huérfano.
+    espacio(6 + 9.6 + M_HV.FILAS_IDIOMA * M_HV.FILA);
+    doc.rect(X0, y, ANCHO, 6, { width: 0.4, rgb: C_HV.marco });
+    doc.text('ESPECÍFIQUE LOS IDIOMAS DIFERENTES AL ESPAÑOL QUE: HABLA, LEE, ESCRIBE DE ' +
+             'FORMA, REGULAR (R), BIEN (B) O MUY BIEN (MB)', X0 + 1.6, y + 4,
+             { size: 5.6, rgb: C_HV.texto });
+    y += 6;
+
+    const IDI_X = X0 + 22, NIV = 8.2;
+    const IDI_W = ANCHO - 44 - NIV * 9;
+    doc.rect(IDI_X, y, IDI_W, 9.6, { relleno: C_HV.fondo, width: 0.4, rgb: C_HV.marco });
+    doc.text('IDIOMA', IDI_X + IDI_W / 2, y + 6.4,
+             { size: 6.4, italic: true, align: 'center', rgb: C_HV.texto });
+
+    const NIVELES = ['LO HABLA', 'LO LEE', 'LO ESCRIBE'];
+    NIVELES.forEach((n, i) => {
+      const nx = IDI_X + IDI_W + NIV * 3 * i;
+      doc.rect(nx, y, NIV * 3, 4.8, { relleno: C_HV.fondo, width: 0.4, rgb: C_HV.marco });
+      doc.text(n, nx + NIV * 1.5, y + 3.4,
+               { size: 5.6, italic: true, align: 'center', rgb: C_HV.texto });
+      ['R', 'B', 'MB'].forEach((g, j) => {
+        const gx = nx + NIV * j;
+        doc.rect(gx, y + 4.8, NIV, 4.8, { relleno: C_HV.fondo, width: 0.4, rgb: C_HV.marco });
+        doc.text(g, gx + NIV / 2, y + 8.1,
+                 { size: 5.6, align: 'center', rgb: C_HV.texto });
+      });
+    });
+    y += 9.6;
+
+    for (let r = 0; r < M_HV.FILAS_IDIOMA; r++) {
+      doc.rect(IDI_X, y, IDI_W, M_HV.FILA, { width: 0.4, rgb: C_HV.marco });
+      for (let j = 0; j < 9; j++) {
+        doc.rect(IDI_X + IDI_W + NIV * j, y, NIV, M_HV.FILA, { width: 0.4, rgb: C_HV.marco });
+      }
+      y += M_HV.FILA;
+    }
+
+    /* ---------- 3. Experiencia laboral ----------
+       Igual que arriba: los cuatro bloques del impreso, se llene o no. */
+    y += 3;
+    espacio(40);
+    seccion(3, 'EXPERIENCIA LABORAL');
+
+    doc.rect(X0, y, ANCHO, 6, { width: 0.4, rgb: C_HV.marco });
+    doc.text('RELACIONE SU EXPERIENCIA LABORAL O DE PRESTACIÓN DE SERVICIOS EN ESTRICTO ' +
+             'ORDEN CRONOLÓGICO COMENZANDO POR EL ACTUAL.', X0 + 1.6, y + 4,
+             { size: 5.6, rgb: C_HV.texto });
+    y += 6;
+
+    const empleos = hv.empleos || [];
+    const nEmp = Math.max(M_HV.BLOQUES_EMPLEO, empleos.length);
+    for (let i = 0; i < nEmp; i++) {
+      const e = empleos[i] || {};
+      espacio(5 + M_HV.FILA * 1.55 * 4);
+      subtitulo(i === 0 ? 'EMPLEO ACTUAL O CONTRATO VIGENTE'
+                        : 'EMPLEO O CONTRATO ANTERIOR');
+      fila([
+        { ancho: 2, etiqueta: 'EMPRESA O ENTIDAD', valor: e.empresa },
+        { ancho: 0.8, etiqueta: 'NATURALEZA',
+          valor: e.empresa ? (e.naturaleza === 'PUBLICA' ? 'PÚBLICA' : 'PRIVADA') : '' },
+        { ancho: 0.9, etiqueta: 'PAÍS', valor: e.empresa ? e.pais : '' }
+      ]);
+      fila([
+        { ancho: 1, etiqueta: 'DEPARTAMENTO', valor: e.depto },
+        { ancho: 1, etiqueta: 'MUNICIPIO', valor: e.municipio },
+        { ancho: 1.3, etiqueta: 'CORREO ELECTRÓNICO ENTIDAD', valor: e.correo }
+      ]);
+      fila([
+        { ancho: 1.1, etiqueta: 'TELÉFONOS', valor: e.telefonos },
+        { ancho: 1, etiqueta: 'FECHA DE INGRESO', valor: fechaCortaHV(e.ingreso) },
+        // Sin empresa no hay nada que decir del retiro: la celda queda vacía.
+        { ancho: 1, etiqueta: 'FECHA DE RETIRO',
+          valor: e.empresa ? (e.retiro ? fechaCortaHV(e.retiro) : 'Actual') : '' }
+      ]);
+      fila([
+        { ancho: 1.2, etiqueta: 'CARGO O CONTRATO', valor: e.cargo },
+        { ancho: 1, etiqueta: 'DEPENDENCIA', valor: e.dependencia },
+        { ancho: 1.1, etiqueta: 'DIRECCIÓN', valor: e.direccion }
+      ]);
+      y += 2.2;
+    }
+
+    doc.text('NOTA: SI REQUIERE ADICIONAR MAS EXPERIENCIA LABORAL, IMPRIMA NUEVAMENTE ESTA HOJA',
+             X0, Math.min(y + 4, 266), { size: 6, bold: true, rgb: C_HV.texto });
 
     doc.text('Documento generado el ' + d.generadaFecha + ' a las ' + d.generadaHora,
              X0, Math.min(y + 7, 269), { size: 7, italic: true, rgb: C_HV.tenue });
     pie();
-    return doc.build();
-  }
-
-  function generarPDFAlimentacion(d) {
-    const hoja = d.consent.hoja || { ancho: 215.9, alto: 279.4 };
-    const doc = new PDFDoc({ width: hoja.ancho, height: hoja.alto });
-    if (d.consent.banda) {
-      doc.addImage('ImBanda', d.consent.banda.b64, d.consent.banda.w, d.consent.banda.h);
-    }
-    if (d.firma) doc.addImage('ImFirma', d.firma.b64, d.firma.w, d.firma.h);
-    if (d.firmaResponsable) {
-      doc.addImage('ImFirmaResp', d.firmaResponsable.b64,
-                   d.firmaResponsable.w, d.firmaResponsable.h);
-    }
-    doc.addPage();
-
-    const W = hoja.ancho, X0 = M_CERT.X0, X1 = M_CERT.X1;
-    const al = d.alimentacion || {};
-
-    let yTope = 12;
-    if (d.consent.banda) {
-      const b = d.consent.banda;
-      const bw = M_SF.BANDA_W, bh = bw * b.h / b.w;
-      doc.image('ImBanda', M_SF.BANDA_X, 6, bw, bh);
-      yTope = 6 + bh + 6;
-    }
-
-    doc.line(0, yTope, W, yTope, { width: 0.5, rgb: C_CERT.azul });
-
-    const titulo = d.consent.titulo || 'CERTIFICADO DE RECEPCIÓN DEL SERVICIO DE ALIMENTACIÓN';
-    let yTit = yTope + 6.9;
-    const opTit = { size: 12.5, bold: true, align: 'center',
-                    rgb: C_CERT.azulTexto, tracking: 0.4 };
-    if (doc.widthOf(titulo, opTit.size, true) <= X1 - X0) {
-      doc.text(titulo, W / 2, yTit, opTit);
-      yTit += 4.7;
-    } else {
-      const corte = titulo.lastIndexOf(' ', Math.floor(titulo.length * 0.6));
-      doc.text(titulo.slice(0, corte), W / 2, yTit, opTit);
-      doc.text(titulo.slice(corte + 1), W / 2, yTit + 5.6, opTit);
-      yTit += 10.3;
-    }
-    doc.line(0, yTit, W, yTit, { width: 0.9, rgb: C_CERT.azul });
-
-    let sede = d.sedeNombre || 'UNIDAD SAN FELIPE';
-
-    const declaracion = d.paciente ? [
-      { s: 'Yo, ' }, { s: d.nombreCompleto },
-      { s: ', identificado(a) con ' + d.tipoDocId + ' - ' + d.numeroDoc +
-           ', en calidad de ' + (d.calidad || 'acompañante o familiar') + ' de ' },
-      { s: d.paciente.nombre },
-      { s: ', identificado(a) con ' + d.paciente.tipoDocId + ' - ' + d.paciente.numeroDoc +
-           ', certifico que recibió a satisfacción el servicio de alimentación ' +
-           'suministrado por la institución en la sede ' },
-      { s: sede },
-      { s: ', dejando constancia de la recepción del servicio prestado.' }
-    ] : [
-      { s: 'Yo, ' }, { s: d.nombreCompleto },
-      { s: ', identificado(a) con ' + d.tipoDocId + ' - ' + d.numeroDoc +
-           ', certifico haber recibido a satisfacción el servicio de alimentación ' +
-           'suministrado por la institución en la sede ' },
-      { s: sede },
-      { s: ', dejando constancia de la recepción del servicio prestado.' }
-    ];
-    let y = doc.paragraph(declaracion, X0, yTit + 8.1, X1 - X0,
-                          { size: 9.2, rgb: C_CERT.texto });
-
-    const filas = [
-      ['Fecha:',                fechaCortaHV(al.fecha)],
-      ['Servicio:',             d.consent.servicio || ''],
-      ['Tipo de alimentación:', (al.tipos || []).join(' / ')],
-      ['Cantidad:',             al.raciones ? al.raciones + (al.raciones === '1' ? ' ración' : ' raciones') : '']
-    ];
-    let yf = Math.max(50.1, y + 2.2);
-    doc.line(0, yf, W, yf, { width: 0.35, rgb: C_CERT.sepFuerte });
-    filas.forEach((f, i) => {
-      const base = yf + M_CERT.FILA - 2.3;
-      doc.text(f[0], 6.5, base, { size: 8.6, bold: true, rgb: C_CERT.texto });
-      if (f[1]) doc.text(String(f[1]), M_CERT.VALOR + 8, base, { size: 8.6, rgb: C_CERT.texto });
-      yf += M_CERT.FILA;
-      const ultima = (i === filas.length - 1);
-      doc.line(0, yf, W, yf, { width: 0.35, rgb: ultima ? C_CERT.sepFuerte : C_CERT.sepSuave });
-    });
-
-    const yRegla = Math.max(120.6, yf + 26);
-    const LX0 = 18, LX1 = 100, RX0 = 116, RX1 = 198;
-
-    function bloqueFirmaAlim(x0, x1, img, jpeg, rotulo, pie) {
-      const cx = (x0 + x1) / 2;
-      if (jpeg) {
-        let fh = 15, fw = fh * jpeg.w / jpeg.h;
-        const maxW = x1 - x0 - 8;
-        if (fw > maxW) { fw = maxW; fh = fw * jpeg.h / jpeg.w; }
-        doc.image(img, cx - fw / 2, yRegla - fh - 3, fw, fh);
-      }
-      doc.line(x0, yRegla, x1, yRegla, { width: 0.55, rgb: C_CERT.texto });
-      doc.text(rotulo, cx, yRegla + 4.1,
-               { size: 7.8, align: 'center', rgb: C_CERT.gris, tracking: 0.4 });
-      if (pie) {
-        doc.text(pie, cx, yRegla + 8.2, { size: 7.2, align: 'center', rgb: C_CERT.gris });
-      }
-    }
-
-    const rotIzq = (d.pdf && d.pdf.firmaCertificado) || 'BENEFICIARIO';
-    bloqueFirmaAlim(LX0, LX1, 'ImFirma', d.firma, 'FIRMA DE QUIEN RECIBE — ' + rotIzq,
-                    d.tipoDocId + ' ' + d.numeroDoc + ' - ' + d.nombreCompleto);
-    bloqueFirmaAlim(RX0, RX1, 'ImFirmaResp', d.firmaResponsable,
-                    'RESPONSABLE DE LA INSTITUCIÓN',
-                    d.responsable ? 'C.C. ' + d.responsable.documento + ' - ' + d.responsable.nombre : '');
-
-  
-    const cajaY = yRegla + 12.6, cajaH = 12.1;
-    doc.rect(0.5, cajaY, W - 1, cajaH,
-             { width: 0.35, rgb: C_CERT.sepFuerte, relleno: C_CERT.cajaFondo });
-    doc.text('FECHA DE GENERACIÓN', W / 2, cajaY + 3.6,
-             { size: 6.8, bold: true, align: 'center', rgb: C_CERT.azul, tracking: 0.8 });
-
-    const sep = '   |   ';
-    const anchoF = doc.widthOf(d.generadaFecha, 9.4, true);
-    const anchoS = doc.widthOf(sep, 9.4, true);
-    const anchoH = doc.widthOf(d.generadaHora, 9.4, true);
-    let xg = W / 2 - (anchoF + anchoS + anchoH) / 2;
-    const yg = cajaY + 8.9;
-    xg = doc.text(d.generadaFecha, xg, yg, { size: 9.4, bold: true, rgb: C_CERT.azulTexto });
-    xg = doc.text(sep,             xg, yg, { size: 9.4, bold: true, rgb: C_CERT.sepFuerte });
-    doc.text(d.generadaHora,       xg, yg, { size: 9.4, bold: true, rgb: C_CERT.verde });
-
     return doc.build();
   }
 
@@ -2619,9 +2860,13 @@
     pacientes_sf: generarPDFSanFelipe,
     certificado_atencion: generarPDFCertificado,
     hoja_vida: generarPDFHojaVida,
-    alimentacion_sf: generarPDFAlimentacion,
     transporte_creas: generarPDFTransporte
+    // alimentacion_sf no está aquí a propósito: ese formato no genera PDF.
+    // Se registra en la base de datos a través del API (ver enviarRegistro).
   };
+
+  /** Los formatos que se guardan en una base en vez de armar un documento. */
+  const esRegistro = (c) => !!(c && c.registro);
 
   const form = $('consentForm');
   const alertBox = $('formAlert');
@@ -2723,27 +2968,67 @@
     let alimentacion = null;
     if (pide('alimentacion')) {
       const fechaAl = $('fechaAlimentacion');
-      if (!fechaAl.value) fail(fechaAl, 'Indique la fecha de la entrega.');
+      if (!fechaAl.value) {
+        fail(fechaAl, 'Indique la fecha de la entrega.');
+      } else if (fechaAl.value > hoyISO()) {
+        fail(fechaAl, 'La fecha no puede ser posterior a hoy.');
+      }
 
-      const tipos = tiposAlimentacionMarcados();
-      if (!tipos.length) {
-        alimError.textContent = 'Marque al menos un tipo de alimentación.';
+      if (!controlElegido()) {
+        controlError.textContent = 'Elija el tipo de control.';
+        controlError.classList.remove('asc-hidden');
+        if (!primerError) primerError = tiposControlCont;
+      } else {
+        controlError.classList.add('asc-hidden');
+      }
+
+      if (pideDestino() && !inpDestino.value.trim()) {
+        fail(inpDestino, 'Indique la IPS de destino.');
+      }
+
+      const marcadas = raciones();
+      if (!marcadas.length) {
+        alimError.textContent = 'Marque al menos una comida y escriba cuántas raciones.';
         alimError.classList.remove('asc-hidden');
         if (!primerError) primerError = tiposAlimCont;
       } else {
         alimError.classList.add('asc-hidden');
+        marcadas.forEach((r) => {
+          if (!(r.cantidad >= 1)) {
+            fail(r.campo, 'Escriba cuántas raciones, o desmarque la comida.');
+          } else if (r.cantidad > MAX_RACIONES()) {
+            fail(r.campo, 'Máximo ' + MAX_RACIONES() + ' raciones.');
+          }
+        });
       }
 
-      const rac = inpRaciones.value.trim();
-      if (!rac) fail(inpRaciones, 'Indique la cantidad de raciones.');
-      else if (!/^\d{1,4}$/.test(rac) || parseInt(rac, 10) < 1) {
-        fail(inpRaciones, 'Debe ser un número mayor que cero.');
-      }
+      const porComida = {};
+      marcadas.forEach((r) => { porComida[r.id] = r.cantidad; });
 
       alimentacion = {
-        fecha: fechaAl.value,
-        tipos: tipos.map((t) => t.label),
-        raciones: rac
+        fecha:    fechaAl.value,
+        control:  controlElegido(),
+        destino:  pideDestino() ? titleCase(inpDestino.value).toUpperCase() : '',
+        desayuno: porComida.desayuno || null,
+        almuerzo: porComida.almuerzo || null,
+        cena:     porComida.cena     || null,
+        tipos:    marcadas.map((r) => r.label + ' (' + r.cantidad + ')')
+      };
+    }
+
+    let contacto = null;
+    if (pide('contacto')) {
+      // Los cuatro son opcionales: completan la ficha de la persona cuando
+      // se sepan, y el servidor no sobreescribe lo que ya estuviera puesto.
+      contacto = {
+        tipoPaciente: selTipoMinuta.value,
+        // La dirección con inicial mayúscula («Calle 41 # 12-30»), porque va
+        // en el encabezado de la minuta al lado de datos en mayúsculas y
+        // escrita en minúsculas se ve descuidada. La EPS toda en mayúsculas,
+        // como en el formato original («COOSALUD»).
+        direccion:    tituloCase($('direccionUsuario').value),
+        telefono:     titleCase($('telefonoUsuario').value),
+        eps:          titleCase($('epsUsuario').value).toUpperCase()
       };
     }
 
@@ -2853,6 +3138,7 @@
       menores: menores,
       hojaVida: hojaVida,
       alimentacion: alimentacion,
+      contacto: contacto,
       foto: foto,
       firma: CONSENT.campos.firma === false ? null : firmaPaciente.jpeg(),
       responsable: responsable,
@@ -2897,6 +3183,7 @@
     limpiarHojaVida();
     limpiarFoto();
     limpiarAlimentacion();
+    limpiarContacto();
     buscaResponsable.limpiar();
     refrescarFecha(); 
     form.querySelectorAll('.asc-error-msg:not([id])').forEach((p) => p.remove());
@@ -2952,7 +3239,14 @@
         finalidad: d.finalidad || '',
         nombre: d.nombreCompleto,
         tipoDocumento: d.tipoDocLabel,
+        // El id ('CC') además de la etiqueta: la etiqueta es para leer en el
+        // correo, el id es lo que necesita la base cuando el Apps Script
+        // registra al paciente.
+        tipoDocId: d.tipoDocId,
         documento: d.numeroDoc,
+        // La EPS remitente: la ficha del paciente la necesita, y el Apps
+        // Script la reenvía a la base cuando registra el consentimiento.
+        eps: d.entidadRemitente || '',
         lugarExpedicion: d.lugarExpedicion,
         sede: d.consent.campos.sede === false ? '' : d.sedeNombre,
         ciudad: d.ciudad,
@@ -2982,6 +3276,96 @@
         if (!res.ok) throw new Error(res.error || 'El servidor rechazó el envío.');
         return res;
       });
+  }
+
+  /* Registro del paciente cuando se está probando en local.
+   *
+   * En producción de esto se encarga el Apps Script: después de mandar el
+   * correo llama a api/consentimiento.php de servidor a servidor, con su
+   * secreto. Pero el Apps Script corre en Google, y desde allá «localhost»
+   * es la máquina de Google: ese aviso jamás llega al equipo de quien
+   * programa. Así que en local lo hace el navegador.
+   *
+   * Solo corre en localhost. En el sitio de verdad no se dispara, y aunque
+   * se disparara el endpoint la rechazaría por falta del secreto.
+   *
+   * Nunca falla hacia afuera: devuelve una nota para el aviso, porque si
+   * rechazara haría creer que el correo no salió. */
+  function esLocal() {
+    return ['localhost', '127.0.0.1', '::1'].indexOf(location.hostname) !== -1;
+  }
+
+  function registrarPacienteLocal(d) {
+    if (!esLocal() || !CONSENT || !CONSENT.registraPaciente) return Promise.resolve('');
+
+    return fetch('api/consentimiento.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        nombre:        d.nombreCompleto,
+        tipoDocumento: d.tipoDocId,
+        documento:     d.numeroDoc,
+        codigo:        (d.consent && d.consent.codigo) || '',
+        eps:           d.entidadRemitente || '',
+        archivo:       'prueba local'
+      })
+    })
+      .then((r) => r.text().then((txt) => {
+        let res = {};
+        try { res = JSON.parse(txt); } catch (e) { /* no vino JSON */ }
+
+        if (res.ok) {
+          return ' [local] Paciente ' + (res.creado ? 'creado' : 'actualizado') +
+                 ' en la base, ya puede recibir alimentación.';
+        }
+
+        // El detalle va a la consola y lo esencial al aviso: sin la URL y el
+        // código no hay forma de saber a qué servidor se le habló.
+        console.warn('[Consentimiento] registro local:', r.status, r.url, txt.slice(0, 400));
+
+        let pista = res.error || 'el servidor no devolvió JSON';
+        if (r.status === 405) {
+          pista = 'ese servidor no acepta POST. ¿La página se está abriendo ' +
+                  'por php -S y no por otro servidor estático?';
+        } else if (r.status === 404) {
+          pista = 'no existe esa ruta. Revise desde qué carpeta se lanzó php -S.';
+        }
+
+        return ' [local] NO quedó en la base — HTTP ' + r.status + ' en ' + r.url +
+               ': ' + pista;
+      }))
+      .catch((err) => {
+        console.warn('[Consentimiento] registro local:', err);
+        return ' [local] NO quedó en la base: no respondió el servidor ' +
+               '(¿está corriendo php -S?).';
+      });
+  }
+
+  /* En producción el registro en la base lo hace el Apps Script y devuelve
+   * el resultado en `registro`. Antes ese resultado se ignoraba, así que si
+   * la base fallaba el aviso igual decía «Enviado» y nadie se enteraba. */
+  function notaRegistroRemoto(res) {
+    if (!CONSENT || !CONSENT.registraPaciente) return { nota: '', falla: false };
+    const r = res && res.registro;
+    if (!r) {
+      console.warn('[Consentimiento] el Apps Script no devolvió «registro»:', res);
+      return { falla: true, nota: ' ATENCIÓN: el paciente NO quedó registrado en la base ' +
+        '(el servicio de correo no informó el registro; puede estar publicada una versión ' +
+        'vieja del Apps Script).' };
+    }
+    if (!r.intentado) {
+      console.warn('[Consentimiento] registro en base no intentado:', r);
+      return { falla: true, nota: ' ATENCIÓN: el paciente NO quedó registrado en la base (' +
+        (r.motivo || 'el Apps Script no lo intentó') + ').' };
+    }
+    if (!r.ok) {
+      console.warn('[Consentimiento] registro en base falló:', r);
+      return { falla: true, nota: ' ATENCIÓN: el paciente NO quedó registrado en la base (' +
+        (r.error || 'error desconocido') + '). Avise a soporte.' };
+    }
+    return { falla: false, nota: ' Paciente ' + (r.creado ? 'creado' : 'actualizado') +
+      ' en la base; ya puede recibir alimentación.' };
   }
 
   function botonAviso(texto, onClick) {
@@ -3221,6 +3605,13 @@
       return;
     }
 
+    // Los formatos de registro no arman documento, no adjuntan soportes y no
+    // pasan por el buzón: se van derecho a la base de datos.
+    if (esRegistro(CONSENT)) {
+      enviarRegistro(d);
+      return;
+    }
+
     if (SOP.ACTIVO && sop().OBLIGATORIO && !soportes.length) {
       soporteError.textContent = 'Adjunte la copia del documento de identidad.';
       soporteError.classList.remove('asc-hidden');
@@ -3305,9 +3696,23 @@
   const submitLabelEl = $('submitLabel');
   const opcionesModo = Array.from(modoMenu.querySelectorAll('.asc-modo-op'));
 
-  const etiquetaEnvio = () => MODOS[MODO].boton;
+  const etiquetaEnvio = () =>
+    esRegistro(CONSENT) ? 'Guardar el registro' : MODOS[MODO].boton;
 
   function pintarModo() {
+    // En los formatos de registro no hay nada que enviar ni descargar, así
+    // que el selector se esconde en vez de ofrecer opciones que no hacen nada.
+    const registro = esRegistro(CONSENT);
+    modoWrap.classList.toggle('asc-hidden', registro);
+    if (registro) abrirModo(false);
+
+    const etqNuevo = $('btnNuevoLabel');
+    if (etqNuevo) {
+      etqNuevo.textContent = registro
+        ? 'Registrar otra entrega'
+        : 'Generar nuevo consentimiento';
+    }
+
     modoLabel.textContent = MODOS[MODO].corto;
     opcionesModo.forEach((op) => {
       op.setAttribute('aria-checked', String(op.dataset.modo === MODO));
@@ -3377,9 +3782,19 @@
   function volverAEditar() {
     ultimoGenerado = null;
     submitBtn.classList.remove('asc-hidden');
-    modoWrap.classList.remove('asc-hidden');
+    modoWrap.classList.toggle('asc-hidden', esRegistro(CONSENT));
     btnOtraVez.classList.add('asc-hidden');
     btnNuevo.classList.add('asc-hidden');
+  }
+
+  /* Igual que mostrarGenerado, pero sin «descargar otra vez»: en un registro
+     no quedó ningún archivo en memoria que se pueda volver a bajar. */
+  function mostrarRegistrado() {
+    ultimoGenerado = null;
+    submitBtn.classList.add('asc-hidden');
+    modoWrap.classList.add('asc-hidden');
+    btnOtraVez.classList.add('asc-hidden');
+    btnNuevo.classList.remove('asc-hidden');
   }
 
   btnOtraVez.addEventListener('click', () => {
@@ -3395,6 +3810,111 @@
     $('nombres').focus({ preventScroll: true });
   });
 
+  /* ==================================================================
+   *  Envío de los formatos que se registran en la base de datos.
+   *
+   *  Una sola llamada: el servidor busca la persona por documento en
+   *  `usuarios` (que lo tiene como único), la crea si no estaba, y con ese
+   *  id inserta la entrega en `control_alimentos`. Se hace en un solo viaje
+   *  a propósito, dentro de una transacción: si fueran dos llamadas y se
+   *  cortara la conexión en el medio, quedaría una persona registrada sin su
+   *  entrega, y al día siguiente nadie sabría que faltaba.
+   *
+   *  Aquí no se guarda ninguna firma. La firma se recoge a mano sobre el
+   *  formato impreso, que es lo que se descarga en Reportes: una sola firma
+   *  ampara todas las entregas de la planilla.
+   * ================================================================ */
+  function enviarRegistro(d) {
+    if (!window.AscApi) {
+      setAlert('error', 'No se cargó api.js, así que el registro no puede guardarse. ' +
+        'Recargue la página con Ctrl + F5 y, si vuelve a pasar, avise a soporte.');
+      alertBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    const al = d.alimentacion || {};
+    const co = d.contacto || {};
+
+    // Quién recibió: el rol elegido en el paso 2 es lo que decide si en la
+    // constancia sale «(ACOMPAÑANTE)» detrás del nombre.
+    const recibe = ajusteRol().recibe || 'PACIENTE';
+
+    if (window.AscApi.ruta && CONSENT.apiRegistrar) {
+      window.AscApi.ruta(CONSENT.apiRegistrar.replace(/registrar\.php$/, ''));
+    }
+
+    const comidas = (al.tipos || []).join(', ');
+    const resumen = 'Entrega del ' + fechaLegible(al.fecha) +
+                    ' a nombre de ' + d.nombreCompleto +
+                    (comidas ? ' — ' + comidas : '') + '.';
+
+    botonOcupado(true, 'Guardando…');
+    setAlert('info', 'Guardando el registro…');
+
+    window.AscApi.registrarAlimentacion({
+      nombre:        d.nombreCompleto,
+      tipoDocumento: d.tipoDocId,
+      documento:     d.numeroDoc,
+      recibe:        recibe,
+      fecha:         al.fecha,
+      desayuno:      al.desayuno,
+      almuerzo:      al.almuerzo,
+      cena:          al.cena,
+      destino:       al.destino,
+      tipoPaciente:  co.tipoPaciente,
+      direccion:     co.direccion,
+      telefono:      co.telefono,
+      eps:           co.eps,
+      firma:         firmaPaciente.png()
+    })
+      .then((r) => {
+        window.__ultimoRegistro = d;
+        mostrarRegistrado();
+        setAlert('ok', 'Registro guardado. ' + resumen +
+          (r.usuarioNuevo ? ' La persona quedó creada en la base.' : '') +
+          ' Pulse "Registrar otra entrega" para seguir con la siguiente.');
+      })
+      .catch((err) => {
+        console.error('[Consentimiento] Falló el registro:', err);
+
+        // El servidor vuelve a validar y puede señalar campos concretos.
+        // Se pintan en rojo para no dejar a la persona buscando a ciegas.
+        const campos = (err && err.campos) || null;
+        if (campos) {
+          const DONDE = {
+            nombre:        $('nombres'),
+            tipoDocumento: $('tipoDoc'),
+            documento:     $('identificacion'),
+            fecha:         $('fechaAlimentacion')
+          };
+          Object.keys(campos).forEach((k) => {
+            if (DONDE[k]) showError(DONDE[k], campos[k]);
+          });
+          if (campos.alimentacion) {
+            alimError.textContent = campos.alimentacion;
+            alimError.classList.remove('asc-hidden');
+          }
+          if (campos.firma) {
+            firmaPaciente.error.textContent = campos.firma;
+            firmaPaciente.error.classList.remove('asc-hidden');
+            firmaPaciente.wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+
+        setAlert('error', 'NO se guardó el registro: ' + err.message +
+          ' Los datos siguen en pantalla; corrija y vuelva a enviar.');
+      })
+      .then(() => {
+        botonOcupado(false, etiquetaEnvio());
+        alertBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+  }
+
+  function fechaLegible(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : (iso || 'sin fecha');
+  }
+
   function continuarEnvio(bytes, nombreArchivo, d, resumen) {
     const modo = MODOS[MODO];
 
@@ -3404,8 +3924,14 @@
       botonOcupado(false, etiquetaEnvio());
       if (modo.descarga) {
         mostrarGenerado(bytes, nombreArchivo);
-        setAlert('ok', resumen + ' Descargado en este equipo. Puede descargarlo otra vez; ' +
-          'pulse "Generar nuevo consentimiento" cuando vaya a registrar al siguiente.');
+        /* También aquí: probando en local suele apagarse el envío para no
+           mandar correos de verdad, y el paciente igual tiene que quedar en
+           la base para poder probar el control de alimentación. */
+        registrarPacienteLocal(d).then((nota) => {
+          setAlert('ok', resumen + ' Descargado en este equipo.' + (nota || '') +
+            ' Puede descargarlo otra vez; pulse "Generar nuevo consentimiento" ' +
+            'cuando vaya a registrar al siguiente.');
+        });
       } else {
         ultimoEnvio = { bytes: bytes, nombreArchivo: nombreArchivo, datos: d };
         setAlert('error', resumen + ' El envío todavía no está configurado ' +
@@ -3421,17 +3947,25 @@
     botonOcupado(true, 'Enviando…');
     setAlert('info', resumen + ' Enviando al buzón…');
 
+    let fallaBase = false;
     enviarPorCorreo(bytes, nombreArchivo, d)
-      .then(() => {
+      .then((res) => {
+        if (esLocal()) return registrarPacienteLocal(d);
+        const r = notaRegistroRemoto(res);
+        fallaBase = r.falla;
+        return r.nota;
+      })
+      .then((nota) => {
         ultimoEnvio = null;
         mostrarGenerado(bytes, nombreArchivo);
         const otroBuzon = CONSENT && CONSENT.correo &&
                           CONSENT.correo.trim() &&
                           CONSENT.correo.trim() !== (CFG.ENVIO_CORREO || '').trim();
-        setAlert('ok', resumen + ' Enviado al buzón' +
+        setAlert(fallaBase ? 'error' : 'ok', resumen + ' Enviado al buzón' +
           (otroBuzon ? ' ' + correoDestino() : '') +
           (modo.descarga ? ' y descargado en este equipo' : '') +
-          '. Puede descargarlo otra vez; pulse "Generar nuevo consentimiento" ' +
+          '.' + (nota || '') +
+          ' Puede descargarlo otra vez; pulse "Generar nuevo consentimiento" ' +
           'cuando vaya a registrar al siguiente.');
       })
       .catch((err) => {
@@ -3593,7 +4127,7 @@
     if (verAtencion) {
       buscaConvenio.limpiar();
       buscaProcedimiento.limpiar();
-      if (!$('fechaAtencion').value) $('fechaAtencion').value = new Date().toISOString().slice(0, 10);
+      if (!$('fechaAtencion').value) $('fechaAtencion').value = hoyISO();
       if (!$('usuario').value) $('usuario').value = usuarioRecordado();
     } else {
       ['fechaAtencion', 'observaciones'].forEach((id) => {
@@ -3606,13 +4140,23 @@
     const verAlim = pide('alimentacion');
     cardAlimentacion.classList.toggle('asc-hidden', !verAlim);
     if (verAlim) {
+      poblarTiposControl();
       poblarTiposAlimentacion();
       if (!$('fechaAlimentacion').value) {
-        $('fechaAlimentacion').value = new Date().toISOString().slice(0, 10);
+        $('fechaAlimentacion').value = hoyISO();
       }
     } else {
       limpiarAlimentacion();
     }
+
+    const verContacto = pide('contacto');
+    cardContacto.classList.toggle('asc-hidden', !verContacto);
+    if (verContacto) poblarTiposPaciente();
+    else             limpiarContacto();
+
+    // El selector de «enviar / descargar» no aplica a los formatos que se
+    // registran en la base: no hay documento que enviar ni descargar.
+    pintarModo();
 
     const verResponsable = pide('responsable');
     $('cardResponsable').classList.toggle('asc-hidden', !verResponsable);
