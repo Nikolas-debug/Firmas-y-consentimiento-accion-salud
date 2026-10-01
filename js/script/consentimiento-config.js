@@ -73,7 +73,7 @@ window.CONSENT_CONFIG = {
       icono: 'ic-consent-pacientes',
       codigo: 'SP-ADM-RG-01',
       registraPaciente: true,
-
+      correo: 'admisiones@usanfelipe.com',
       fechaFormato: '01-04-2026',
       version: '01',
       hoja: { ancho: 215.9, alto: 279.4 },
@@ -83,7 +83,7 @@ window.CONSENT_CONFIG = {
       campos: {
         lugarExpedicion: false,
         menores:         false,
-        soporte:         false,
+        soporte:         true,
         finalidad:       false,
         entidad:         true,
         representado:    true,
@@ -92,7 +92,45 @@ window.CONSENT_CONFIG = {
       bloqueFirma: {
         paciente:    'paciente',
         acompanante: 'paciente'
+      },
+      soporte: {
+        MAX_ARCHIVOS: 6,
+        TITULO: 'Anexos',
+        NOTA: 'Copia del documento, autorización, remisión. Sus páginas se anexan al final del consentimiento.'
       }
+    },
+    {
+      id: 'hospedaje_sf',
+      label: 'Hospedaje — Hogar de Paso',
+      descripcion: 'Certifica de atención del Hogar de Paso',
+      icono: 'ic-consent-hospedaje',
+      codigo: 'CONS-RVAS-015',
+
+      fechaFormato: '01/04/2026',
+      version: '01',
+      hoja: { ancho: 215.9, alto: 279.4 },
+      tituloApp: 'Hospedaje — Hogar de Paso',
+      leadApp: 'Certifica de atención del Hogar de Paso Unidad San Felipe. Los datos deben coincidir con el documento de identidad.',
+      campos: {
+        lugarExpedicion: false,
+        menores:         false,
+        finalidad:       false,
+        entidad:         false,
+        representado:    false,
+        responsable:     false,
+        sede:            false,
+        hospedaje:       true,
+        soporte:         true
+      },
+      soporte: {
+        MAX_ARCHIVOS: 6,
+        TITULO: 'Anexos',
+        NOTA: 'Autorización, remisión, copia del documento. Sus páginas se anexan al final del certificado.'
+      },
+
+      TIPOS_SERVICIO: [],
+      ENTIDADES: ['Mutualser'],
+      TIPOS_USUARIO: []
     },
     {
       id: 'certificado_atencion',
@@ -420,7 +458,6 @@ window.CONSENT_CONFIG = {
       campos: {
         lugarExpedicion: false,
         menores:         false,
-        soporte:         false,
         finalidad:       false,
         entidad:         false,
         representado:    false,
@@ -509,6 +546,10 @@ window.CONSENT_CONFIG = {
         'Familiar de Colombia'
       ],
 
+      TIPOS_TRANSPORTE: [
+        'TRANSPORTE REDONDO'
+      ],
+
       TIPOS_PACIENTE: [
         { id: 'EVENTO',        label: 'Evento' },
         { id: 'HOGAR DE PASO', label: 'Hogar de paso' },
@@ -590,13 +631,7 @@ window.CONSENT_CONFIG = {
       logoPdfKey: 'LOGO_SAN_FELIPE',
       razonSocial: 'la Unidad San Felipe',
       encabezadoDefault: 'UNIDAD SAN FELIPE',
-      // El control de alimentación salió de esta lista: dejó de ser un
-      // documento que se firma y se descarga. Ahora vive en su propia
-      // página (control-alimentacion.php), detrás del mismo ingreso que
-      // Reportes, y el paciente se busca ahí en vez de digitarse. La
-      // definición del formato se conserva más arriba porque de ella salen
-      // las listas EPS_DESTINO y ENTIDADES_SALUD.
-      consentimientos: ['imagen', 'pacientes_sf'],
+      consentimientos: ['imagen', 'pacientes_sf', 'hospedaje_sf'],
       RESPONSABLES: [
         { nombre: 'YAJAIRA MARIA PETRO JIMENEZ',        documento: '50914875' },
         { nombre: 'MARIA ALEJANDRA HERNANDEZ ESPINOSA', documento: '1002999614' }
@@ -628,6 +663,7 @@ window.CONSENT_CONFIG = {
         datos:                true,
         creas_conecta:        true,
         pacientes_sf:         true,
+        hospedaje_sf:         true,
         certificado_atencion: true,
         hoja_vida:            true,
         alimentacion_sf:      true,
@@ -654,6 +690,7 @@ window.CONSENT_CONFIG = {
         datos:                false,
         creas_conecta:        false,
         pacientes_sf:         false,
+        hospedaje_sf:         false,
         certificado_atencion: true,
         hoja_vida:            false,
         alimentacion_sf:      false,
@@ -708,7 +745,7 @@ window.CONSENT_CONFIG = {
   ENVIAR_ACTIVO: true,
 
   // URL de la aplicación web del Apps Script
-  ENVIO_URL:     'https://script.google.com/macros/s/AKfycbxnsYYJSXpZ8aOUgn3MtFKaQZ1kx7ijsd2OS-NCrjacDsJE-z_5hj7khNWBDJ42JrmY3w/exec',
+  ENVIO_URL: 'https://script.google.com/macros/s/AKfycbzWOqIXwJfinF3W9hQQHJWcSl6DsYp6SaeSZd2KatQYU2386ISJLNn37VxAarjmgxT8zQ/exec',
 
   // En Apps Script
   ENVIO_SECRETO: 'CLAVE-SECRETA-PARA-ENVIO-DE-CORREOS-CONSENTIMIENTOS',

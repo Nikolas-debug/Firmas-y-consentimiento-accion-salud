@@ -313,6 +313,14 @@ var AscFirma = (function (global) {
    *  se guarda y se muestra igual.
    * ==================================================================== */
 
+  /** En tablet el botón dice «Tomar foto de la huella» (lo decide huella.js). */
+  function etiquetaHuellaBoton() {
+    try {
+      if (global.AscHuella && global.AscHuella.etiquetaBoton) return global.AscHuella.etiquetaBoton();
+    } catch (e) { /* abajo */ }
+    return 'Usar huella';
+  }
+
   function panel(opciones) {
     var contenedor = opciones.contenedor;
     var etiqueta   = opciones.etiqueta || 'Firma';
@@ -334,7 +342,7 @@ var AscFirma = (function (global) {
 
     var btnHuella = null;
     if (conHuella) {
-      btnHuella = crear('button', 'ascf-btn-2', 'Usar huella');
+      btnHuella = crear('button', 'ascf-btn-2', etiquetaHuellaBoton());
       btnHuella.type = 'button';
     }
 
@@ -366,7 +374,7 @@ var AscFirma = (function (global) {
       btnFirma.textContent = esHuella ? 'Firmar en pantalla'
                                       : (hay ? 'Volver a firmar' : 'Firmar en pantalla');
       if (btnHuella) {
-        btnHuella.textContent = esHuella ? 'Volver a tomar la huella' : 'Usar huella';
+        btnHuella.textContent = esHuella ? 'Volver a tomar la huella' : etiquetaHuellaBoton();
       }
 
       if (hay) img.src = marca.imagen; else img.removeAttribute('src');

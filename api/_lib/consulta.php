@@ -64,18 +64,28 @@ function asc_entregas(PDO $pdo, array $f, int $max, bool $conFirma = false): arr
         $params['doc']      = $f['documento'];
     }
 
+    /* La firma ya no es de la entrega sino del mes: vive una sola vez en
+       `firmas_periodo` y la fila la apunta. Las entregas viejas, de cuando
+       se firmaba una por una, la tienen en su propia columna — por eso el
+       COALESCE: primero lo que traiga la fila, si no, la del mes. */
+    $firmas = $conFirma
+        ? ', COALESCE(c.firma, fp.firma)                         AS firma' .
+          ', COALESCE(c.firma_acompanante, fpa.firma)            AS firma_acompanante'
+        : '';
+
     $sql = 'SELECT c.id_control, c.recibe, c.tipo_control, c.fecha,
                    c.desayuno, c.almuerzo, c.cena, c.destino,
-                   c.id_acompanante' .
-                   ($conFirma ? ', c.firma, c.firma_acompanante' : '') . ',
+                   c.id_acompanante, c.estado' . $firmas . ',
                    u.id_usuario, u.nombre_usuario, u.tipo_documento, u.n_doc,
                    u.tipo_paciente, u.direccion, u.telefono, u.eps,
                    a.nombre         AS acompanante_nombre,
                    a.tipo_documento AS acompanante_tipo_documento,
                    a.n_doc          AS acompanante_n_doc
               FROM control_alimentos c
-              JOIN usuarios u     ON u.id_usuario     = c.id_usuario
-         LEFT JOIN acompanantes a ON a.id_acompanante = c.id_acompanante
+              JOIN usuarios u          ON u.id_usuario     = c.id_usuario
+         LEFT JOIN acompanantes a      ON a.id_acompanante = c.id_acompanante
+         LEFT JOIN firmas_periodo fp   ON fp.id_firma      = c.id_firma
+         LEFT JOIN firmas_periodo fpa  ON fpa.id_firma     = c.id_firma_acomp
              WHERE ' . implode(' AND ', $where) . '
              ORDER BY u.nombre_usuario ASC, u.id_usuario ASC,
                       c.fecha ASC, c.id_control ASC

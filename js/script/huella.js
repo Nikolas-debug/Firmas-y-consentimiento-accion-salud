@@ -58,7 +58,10 @@ var AscHuella = (function (global) {
     LADO_HUELLA:      400,
     CALIDAD_HUELLA:   0.85,
     LADO_MAXIMO:      800,   // px; el 4500 entrega ~357x392, nunca recorta
-    PERMITIR_ARCHIVO: true
+    PERMITIR_ARCHIVO: true,
+    // Si el lector no aparece (no hay SDK, no contesta el agente de HID o no
+    // hay lector conectado), la ventana pasa sola a la cámara.
+    CAMARA_SI_NO_HAY_LECTOR: true
   };
 
   var doc = global.document;
@@ -155,8 +158,6 @@ var AscHuella = (function (global) {
     return CALIDADES[nombre] || nombre || '—';
   }
 
-  /* La muestra llega en base64url (con «-» y «_»), que no es lo mismo que
-     base64: hay que traducirla antes de metérsela a un <img>. */
   function aBase64(s, api) {
     if (api && typeof api.b64UrlTo64 === 'function') {
       try { return api.b64UrlTo64(s); } catch (e) { /* abajo */ }
@@ -185,12 +186,6 @@ var AscHuella = (function (global) {
     return [];
   }
 
-  /* «Communication failure» es el error del SDK cuando no logra hablar con el
-     agente de HID. Lo primero que hace el WebSdk es un GET a
-     https://127.0.0.1:52181/get_connection para que el agente le diga por
-     dónde seguir; si eso no contesta, no hay nada que hacer del lado de la
-     página. Abrir esa dirección en el navegador distingue las dos causas:
-     el servicio apagado (no carga) o el certificado sin aceptar (avisa). */
   var AGENTE_URL = 'https://127.0.0.1:52181/get_connection';
 
   var AYUDA_AGENTE =
@@ -228,8 +223,9 @@ var AscHuella = (function (global) {
         var lectores = listaDeLectores(r);
         if (!vivo) return null;
         if (!lectores.length) {
-          oyentes.estado('No se ve ningún lector conectado. Conéctelo y vuelva a abrir ' +
-                         'esta ventana.', 'mal');
+          (oyentes.sinLector || oyentes.estado)('No se ve ningún lector conectado. Conéctelo y ' +
+                                                'vuelva a abrir esta ventana.', 'mal');
+          if (oyentes.sinLector) return null;
         }
         return lectores.length
           ? lector.startAcquisition(formato, lectores[0])
@@ -241,14 +237,18 @@ var AscHuella = (function (global) {
       .catch(function (e) {
         if (!vivo) return;
         var m = (e && e.message) ? String(e.message) : '';
-        if (esFalloDeAgente(m)) { oyentes.estado(ayudaAgente(), 'mal'); return; }
+        if (esFalloDeAgente(m)) { (oyentes.sinLector || oyentes.estado)(ayudaAgente(), 'mal'); return; }
         oyentes.estado('No se pudo abrir el lector' + (m ? ': ' + m : '.'), 'mal');
       });
 
     return {
       detener: function () {
         vivo = false;
-        try { lector.stopAcquisition(); } catch (e) { /* ya estaba cerrado */ }
+        try {
+          var r = lector.stopAcquisition();
+   
+          if (r && typeof r.catch === 'function') r.catch(function () { /* nada */ });
+        } catch (e) { /* ya estaba cerrado */ }
       }
     };
   }
@@ -257,14 +257,13 @@ var AscHuella = (function (global) {
     oyentes.estado('El lector respondió sin imagen. Vuelva a poner el dedo.', 'mal');
   }
 
-  /** La librería clásica: Fingerprint.WebApi con manejadores onAlgo. */
   function lectorClasico(F, oyentes) {
     var lector;
     try { lector = new F.WebApi(); } catch (e) { return null; }
 
     lector.onDeviceConnected     = function () { oyentes.estado('Lector conectado. Ponga el dedo en el vidrio.', 'bien'); };
     lector.onDeviceDisconnected  = function () { oyentes.estado('Se desconectó el lector.', 'mal'); };
-    lector.onCommunicationFailed = function () { oyentes.estado(ayudaAgente(), 'mal'); };
+    lector.onCommunicationFailed = function () { (oyentes.sinLector || oyentes.estado)(ayudaAgente(), 'mal'); };
     lector.onQualityReported = function (e) { oyentes.calidad(nombreCalidad(e && e.quality, F)); };
     lector.onSamplesAcquired = function (s) {
       var png = pngDeMuestra(s, F);
@@ -293,7 +292,7 @@ var AscHuella = (function (global) {
     var manejadores = {
       DeviceConnected:    function () { oyentes.estado('Lector conectado. Ponga el dedo en el vidrio.', 'bien'); },
       DeviceDisconnected: function () { oyentes.estado('Se desconectó el lector.', 'mal'); },
-      ErrorOccurred:      function () { oyentes.estado(ayudaAgente(), 'mal'); },
+      ErrorOccurred:      function () { (oyentes.sinLector || oyentes.estado)(ayudaAgente(), 'mal'); },
       QualityReported:    function (e) { oyentes.calidad(nombreCalidad(e && e.quality, M)); },
       SamplesAcquired:    function (e) {
         var png = pngDeMuestra(e, M);
@@ -419,7 +418,10 @@ var AscHuella = (function (global) {
     var nav = global.navigator || {};
     var ua  = nav.userAgent || '';
     if (/Android|iPad|iPhone|iPod/i.test(ua)) return true;
-    return nav.platform === 'MacIntel' && (nav.maxTouchPoints || 0) > 1;
+    if (/Windows/i.test(ua)) return false;
+    // iPad y tablets Android con «sitio de escritorio»: se presentan como Mac
+    // o Linux, pero tienen pantalla táctil.
+    return (nav.maxTouchPoints || 0) > 0 && /Macintosh|MacIntel|Linux|X11|CrOS/i.test(ua + ' ' + (nav.platform || ''));
   }
 
   function hayCamara() {
@@ -433,7 +435,9 @@ var AscHuella = (function (global) {
     try { q = new URLSearchParams(global.location.search).get('huella') || ''; } catch (e) { /* viejo */ }
     q = q.toLowerCase();
     if (q === 'camara' || q === 'lector') return q;
-    return (esTablet() && hayCamara()) ? 'camara' : 'lector';
+    // En tablet siempre la cámara: si el navegador no deja usarla en vivo
+    // (página en http://), «Tomar foto» abre la app de cámara del equipo.
+    return esTablet() ? 'camara' : 'lector';
   }
 
   function textoErrorCamara(e) {
@@ -755,12 +759,13 @@ var AscHuella = (function (global) {
             '<span class="asch-vacia">Esperando la huella…</span>' +
           '</div>' +
           '<div class="asch-datos">' +
+            '<p class="asch-nota ascf-oculto"></p>' +
             '<p class="asch-estado">Abriendo el lector…</p>' +
             '<p class="asch-dato"><b>Calidad:</b> <span class="asch-calidad">—</span></p>' +
             '<label class="asch-filtro ascf-oculto"><input type="checkbox" class="asch-filtro-caja"/> ' +
               'Convertir en huella (líneas negras)</label>' +
             '<ul class="asch-tips"></ul>' +
-            '<div class="asch-nativa ascf-oculto">' +
+            '<div class="asch-nativa" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">' +
               '<label class="asch-etiqueta" for="aschNativa">Tomar con la cámara del equipo</label>' +
               '<input id="aschNativa" class="asch-input" type="file" accept="image/*" capture="environment"/>' +
             '</div>' +
@@ -792,7 +797,7 @@ var AscHuella = (function (global) {
     var datoCal  = fondo.querySelector('.asch-dato');
     var calidad  = fondo.querySelector('.asch-calidad');
     var tips     = fondo.querySelector('.asch-tips');
-    var cajaNat  = fondo.querySelector('.asch-nativa');
+    var nota     = fondo.querySelector('.asch-nota');
     var nativa   = fondo.querySelector('.asch-nativa .asch-input');
     var cajaArch = fondo.querySelector('.asch-archivo');
     var archivo  = fondo.querySelector('.asch-archivo .asch-input');
@@ -845,7 +850,7 @@ var AscHuella = (function (global) {
       vacia.classList.toggle('ascf-oculto', hay || verVisor);
       guardar.disabled = !hay;
 
-      btnFoto.classList.toggle('ascf-oculto', !(modo === 'camara' && camaraLista));
+      btnFoto.classList.toggle('ascf-oculto', modo !== 'camara');
       btnFoto.textContent = hay ? 'Tomar otra foto' : 'Tomar foto';
 
       if (hay) img.src = tomada.imagen; else img.removeAttribute('src');
@@ -857,8 +862,7 @@ var AscHuella = (function (global) {
       datoCal.classList.toggle('ascf-oculto', esCam);
       filaFil.classList.toggle('ascf-oculto', !esCam);
       btnModo.textContent = esCam ? 'Usar lector' : 'Usar cámara';
-      // Solo se ofrece el cambio si hay algo a qué cambiar.
-      btnModo.classList.toggle('ascf-oculto', !hayCamara() && !esCam);
+      btnModo.classList.remove('ascf-oculto');
       var lista = esCam ? TIPS_CAMARA : TIPS_LECTOR;
       tips.innerHTML = '';
       lista.forEach(function (t) { tips.appendChild(crear('li', '', t)); });
@@ -930,12 +934,12 @@ var AscHuella = (function (global) {
     /* ---- modo lector: lo de siempre ---- */
     function iniciarLector() {
       ponerEstado('Abriendo el lector…', '');
-      cajaNat.classList.add('ascf-oculto');
 
       cargarSdk().then(function (listo) {
         if (!cerrarCon || modo !== 'lector') return;   // ya cerró o cambió de modo
 
         if (!listo) {
+          if (pasarACamara('no está el SDK del lector')) return;
           ponerEstado('No se encontró el puente del lector en esta máquina. Hay que ' +
                       'instalar el Lite Client de HID y dejar los dos scripts del SDK ' +
                       'en js/vendor (ver INSTALAR-huellero.md).', 'mal');
@@ -945,6 +949,10 @@ var AscHuella = (function (global) {
 
         activo = abrirLector({
           estado:  ponerEstado,
+          sinLector: function (texto, clase) {
+            if (modo !== 'lector' || !cerrarCon) return;
+            if (!pasarACamara(texto)) ponerEstado(texto, clase);
+          },
           calidad: function (t) { calidad.textContent = t; },
           muestra: function (png) { recibirImagen(png, false); }
         });
@@ -975,21 +983,44 @@ var AscHuella = (function (global) {
           if (modo !== esteModo) return;
           camaraLista = false;
           pintar();
-          ponerEstado(textoErrorCamara(e), 'mal');
-          // La cámara nativa (input capture) no exige HTTPS: sirve de salida.
-          cajaNat.classList.remove('ascf-oculto');
+          if (!e || !global.isSecureContext || !hayCamara()) {
+            // http:// o navegador sin cámara en vivo: no es un error, se usa
+            // la app de cámara del equipo.
+            ponerEstado('Toque «Tomar foto»: se abre la cámara de la tablet. Tome la foto ' +
+                        'del dedo y confírmela.', 'bien');
+            return;
+          }
+          ponerEstado(textoErrorCamara(e) + ' Igual puede tocar «Tomar foto» para usar la ' +
+                      'app de cámara.', 'mal');
         }
       });
       camara = c;
       activo = c;
-      if (!c) cajaNat.classList.remove('ascf-oculto');
+      if (!c) {
+        camaraLista = false;
+        pintar();
+        ponerEstado('Toque «Tomar foto»: se abre la cámara de la tablet. Tome la foto del ' +
+                    'dedo y confírmela.', 'bien');
+      }
     }
 
-    function iniciarModo(m) {
+    /** Sin lector: se pasa a la cámara y se deja dicho por qué. */
+    var lectorAMano = false;
+
+    function pasarACamara(motivo) {
+      if (!CFG.CAMARA_SI_NO_HAY_LECTOR || lectorAMano || modo !== 'lector' || !cerrarCon) return false;
+      iniciarModo('camara', 'No se encontró el lector de huella en este equipo: se usa la ' +
+                            'cámara. (Si el lector sí está conectado, toque «Usar lector».)');
+      try { global.console && console.info('[huella] sin lector (' + motivo + '): se pasa a la cámara'); } catch (e) { /* nada */ }
+      return true;
+    }
+
+    function iniciarModo(m, textoNota) {
+      nota.textContent = textoNota || '';
+      nota.classList.toggle('ascf-oculto', !textoNota);
       detenerTodo();
       modo = m;
       tomada = null;
-      cajaNat.classList.add('ascf-oculto');
       aviso.classList.add('ascf-oculto');
       paramsDeModo();
       pintar();
@@ -997,12 +1028,24 @@ var AscHuella = (function (global) {
     }
 
     btnModo.addEventListener('click', function () {
+      // Si piden el lector a mano, no se vuelve sola a la cámara: se muestra
+      // qué le falta al lector.
+      lectorAMano = modo === 'camara';
       iniciarModo(modo === 'camara' ? 'lector' : 'camara');
     });
 
     btnFoto.addEventListener('click', function () {
-      if (tomada) { tomada = null; pintar(); ponerEstado('Cámara lista. Toque «Tomar foto».', 'bien'); return; }
-      if (!camara) return;
+      if (tomada && camaraLista) {
+        tomada = null; pintar();
+        ponerEstado('Cámara lista. Toque «Tomar foto».', 'bien');
+        return;
+      }
+      if (!camara || !camaraLista) {
+        // Sin cámara en vivo: la app de cámara del equipo (input capture).
+        nativa.value = '';
+        nativa.click();
+        return;
+      }
       cruda = camara.foto();
       if (!cruda) return;
       ponerEstado('Procesando la foto…', '');
@@ -1040,7 +1083,9 @@ var AscHuella = (function (global) {
         return src ? fotoDeArchivo(src) : null;
       }).then(function (c) {
         cruda = c;
-        if (c) mostrarCruda(); else recibirResultado(null, '');
+        if (!c) { recibirResultado(null, ''); return; }
+        ponerEstado('Procesando la foto…', '');
+        global.setTimeout(mostrarCruda, 30);
       });
     });
 
@@ -1056,6 +1101,7 @@ var AscHuella = (function (global) {
           titulo.textContent = etiqueta;
           fondo.classList.remove('ascf-oculto');
           doc.body.style.overflow = 'hidden';
+          lectorAMano = false;
           iniciarModo(modoInicial());
         });
       }
@@ -1075,6 +1121,8 @@ var AscHuella = (function (global) {
   return {
     capturar:  capturar,
     esTablet:  esTablet,
+    /** Lo que dice el botón de la tarjeta según el equipo. */
+    etiquetaBoton: function () { return modoInicial() === 'camara' ? 'Tomar foto de la huella' : 'Usar huella'; },
     modoInicial: modoInicial,
     haySdk:    haySdk,
     cargarSdk: cargarSdk,

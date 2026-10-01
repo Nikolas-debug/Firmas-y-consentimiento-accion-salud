@@ -12,7 +12,9 @@
  *  - El tipo de control se guarda aparte (ya no se deduce del destino,
  *    porque ahora los dos tipos llevan EPS de destino).
  *  - Si alguna comida va en 2 o más, hubo acompañante: se piden sus datos y
- *    su firma, y queda en su propia tabla.
+ *    queda en su propia tabla.
+ *  - Ya NO se firma acá. La entrega nace PENDIENTE y se firma al cerrar el
+ *    mes, desde reportes, con una sola firma por persona.
  * ========================================================================== */
 
 declare(strict_types=1);
@@ -28,12 +30,6 @@ asc_sesion($cfg);
 asc_exigir_sesion();
 
 $in = asc_cuerpo();
-
-/** FIRMA o HUELLA; cualquier otra cosa se guarda como FIRMA. */
-function asc_tipo_marca($v): string
-{
-    return strtoupper(asc_texto($v, 10)) === 'HUELLA' ? 'HUELLA' : 'FIRMA';
-}
 
 /**
  * Los datos de la ficha que se pueden completar desde esta pantalla cuando el
@@ -92,13 +88,9 @@ if ($desayuno === null && $almuerzo === null && $cena === null) {
     $errores['alimentacion'] = 'Indique la cantidad de al menos una comida.';
 }
 
-/* La marca puede ser la firma trazada en pantalla o la huella del lector.
-   Las dos llegan como imagen y van a la misma columna. */
-$firma     = asc_imagen($in['firma'] ?? null);
-$firmaTipo = asc_tipo_marca($in['firmaTipo'] ?? null);
-if ($firma === null) {
-    $errores['firma'] = 'Debe capturar la firma o la huella del paciente.';
-}
+/* La firma dejó de pedirse acá. Ahora la entrega se guarda PENDIENTE y al
+   cerrar el mes la persona firma una sola vez desde la página de reportes
+   (api/firmar-mes.php); esa firma vale para todos sus registros del mes. */
 
 /* --- 2. ¿Hubo acompañante? -----------------------------------------------
  *  La regla la puso la Unidad: dos de una misma comida significa que vino
@@ -117,8 +109,6 @@ $acompTipo   = strtoupper(asc_texto($acomp['tipoDocumento'] ?? '', 5));
 $acompDoc    = asc_documento($acomp['documento'] ?? '');
 $acompTel    = asc_texto($acomp['telefono'] ?? '', 30) ?: null;
 $acompParent = asc_texto($acomp['parentesco'] ?? '', 60) ?: null;
-$firmaAcomp  = asc_imagen($in['firmaAcompanante'] ?? null);
-$firmaAcompT = asc_tipo_marca($in['firmaAcompananteTipo'] ?? null);
 
 if ($hayAcompanante) {
     if (mb_strlen($acompNombre) < 3) {
@@ -129,9 +119,6 @@ if ($hayAcompanante) {
     }
     if (strlen($acompDoc) < 5) {
         $errores['acompananteDocumento'] = 'Escriba el documento del acompañante.';
-    }
-    if ($firmaAcomp === null) {
-        $errores['firmaAcompanante'] = 'Debe capturar la firma o la huella del acompañante.';
     }
 }
 
@@ -223,7 +210,7 @@ try {
 
     /* 3.3 La entrega. */
     $cols = ['id_usuario', 'id_acompanante', 'recibe', 'tipo_control', 'fecha',
-             'desayuno', 'almuerzo', 'cena', 'destino', 'firma', 'firma_acompanante'];
+             'desayuno', 'almuerzo', 'cena', 'destino', 'estado'];
     $vals = [
         $idUsuario,
         $idAcompanante,
@@ -232,18 +219,8 @@ try {
         $fecha,
         $desayuno, $almuerzo, $cena,
         $destino,
-        $firma,
-        $hayAcompanante ? $firmaAcomp : null,
+        'PENDIENTE',
     ];
-
-    /* Si se corrió el SQL 04 se deja constancia de si la marca fue firma o
-       huella. Si no, se guarda igual: la imagen es lo importante. */
-    if (asc_hay_columna($pdo, 'control_alimentos', 'firma_tipo')) {
-        $cols[] = 'firma_tipo';
-        $vals[] = $firmaTipo;
-        $cols[] = 'firma_acompanante_tipo';
-        $vals[] = $hayAcompanante ? $firmaAcompT : null;
-    }
 
     $ins = $pdo->prepare('INSERT INTO control_alimentos (`' . implode('`, `', $cols) . '`)
             VALUES (' . implode(', ', array_fill(0, count($cols), '?')) . ')');
@@ -276,8 +253,7 @@ asc_ok([
     'idUsuario'      => $idUsuario,
     'idAcompanante'  => $idAcompanante,
     'conAcompanante' => $hayAcompanante,
-    'marca'          => $firmaTipo,
-    'marcaAcomp'     => $hayAcompanante ? $firmaAcompT : null,
+    'estado'         => 'PENDIENTE',
     // Para que la pantalla pueda decir qué se completó de la ficha.
     'fichaActualizada' => $fichaActualizada,
 ]);

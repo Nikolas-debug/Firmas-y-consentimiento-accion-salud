@@ -22,7 +22,7 @@ header('Referrer-Policy: same-origin');
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="robots" content="noindex, nofollow"/>
-<title>Reportes de alimentación — Unidad San Felipe</title>
+<title>Reportes de transporte — Unidad San Felipe</title>
 <link rel="icon" href="images/favicon.ico"/>
 <style>
 :root{
@@ -189,7 +189,7 @@ td.num{text-align:center}
 
 <!-- =====================  INGRESO  ===================================== -->
 <div class="wrap wrap--angosto<?= $entro ? ' oculto' : '' ?>" id="zonaIngreso">
-  <h1>Reportes de alimentación</h1>
+  <h1>Reportes de transporte</h1>
   <p class="lead">Unidad San Felipe</p>
 
   <form class="tarjeta" id="formIngreso" autocomplete="on">
@@ -215,11 +215,12 @@ td.num{text-align:center}
 
   <div class="barra">
     <div>
-      <h1>Reportes de alimentación</h1>
-      <p class="lead" style="margin:0">Consulte por rango de fechas y descargue el formato en PDF.</p>
+      <h1>Reportes de transporte</h1>
+      <p class="lead" style="margin:0">Consulte por rango de fechas y descargue la constancia en PDF.</p>
     </div>
     <div style="text-align:right">
       <p class="quien">Ingresó como <b id="nombreQuien"><?= htmlspecialchars($quien, ENT_QUOTES, 'UTF-8') ?></b></p>
+      <a class="btn-link" href="control-transporte.php">Registrar viajes</a>
       <button class="btn-link" type="button" id="btnSalir">Cerrar sesión</button>
     </div>
   </div>
@@ -227,18 +228,12 @@ td.num{text-align:center}
   <form class="tarjeta" id="formFiltros">
     <h2>Qué se va a exportar</h2>
     <p class="pista" style="margin-bottom:20px">
-      Los dos formatos salen de la misma tabla. Los separa el destino:
-      Confort Care son las entregas que tienen IPS de destino; el control general, las que no.
+      Sale una hoja por persona y por mes, con sus 31 renglones, como el
+      formato impreso. Los viajes que todavía no se han firmado salen con la
+      casilla de firma vacía.
     </p>
 
     <div class="campos">
-      <div class="campo">
-        <label for="formato">Formato</label>
-        <select id="formato">
-          <option value="general">Control general — Minuta de control de alimentos</option>
-          <option value="confort">Confort Care — Constancia CONS-RVAS-005</option>
-        </select>
-      </div>
       <div class="campo">
         <label for="desde">Desde</label>
         <input id="desde" type="date" required/>
@@ -282,15 +277,13 @@ td.num{text-align:center}
 <script src="js/script/firma.js"></script>
 <script src="js/script/huella.js"></script>
 <script src="js/script/pdf-writer.js"></script>
-<script src="js/script/pdf-alimentacion.js"></script>
+<script src="js/script/pdf-transporte.js"></script>
 <script>
 (function () {
   'use strict';
 
   var API = 'api/';
   var $ = function (id) { return document.getElementById(id); };
-
-  var COMIDAS = ['desayuno', 'almuerzo', 'cena'];
 
   /* --- utilidades ---------------------------------------------------- */
 
@@ -376,7 +369,6 @@ td.num{text-align:center}
 
   function filtros() {
     return {
-      formato:   $('formato').value,
       desde:     $('desde').value,
       hasta:     $('hasta').value,
       documento: $('documento').value.replace(/[^0-9A-Za-z]/g, '')
@@ -384,8 +376,7 @@ td.num{text-align:center}
   }
 
   function comoUrl(f) {
-    return 'formato=' + encodeURIComponent(f.formato) +
-           '&desde='  + encodeURIComponent(f.desde) +
+    return 'desde=' + encodeURIComponent(f.desde) +
            '&hasta='  + encodeURIComponent(f.hasta) +
            (f.documento ? '&documento=' + encodeURIComponent(f.documento) : '');
   }
@@ -403,7 +394,7 @@ td.num{text-align:center}
     ocupado($('btnVer'), true, 'Consultando…');
     $('btnBajar').disabled = true;
 
-    pedir(API + 'listar.php?' + comoUrl(f))
+    pedir(API + 'listar-transporte.php?' + comoUrl(f))
       .then(function (d) {
         ultimos = d.filtros;
         pintar(d);
@@ -434,7 +425,7 @@ td.num{text-align:center}
   $('btnBajar').addEventListener('click', function () {
     if (!ultimos) return;
 
-    if (!window.PDFDoc || !window.AscPdfAlimentacion) {
+    if (!window.PDFDoc || !window.AscPdfTransporte) {
       aviso($('avisoPanel'), 'No se cargaron los archivos que arman el PDF. ' +
         'Recargue con Ctrl + F5 y, si vuelve a pasar, avise a soporte.', false);
       return;
@@ -443,14 +434,10 @@ td.num{text-align:center}
     ocupado($('btnBajar'), true, 'Armando el PDF...');
     aviso($('avisoPanel'), '');
 
-    pedir(API + 'exportar.php?' + comoUrl(ultimos))
+    pedir(API + 'exportar-transporte.php?' + comoUrl(ultimos))
       .then(function (d) {
-        var esConfort = ultimos.formato === 'confort';
-        var armar = esConfort ? window.AscPdfAlimentacion.constancia
-                              : window.AscPdfAlimentacion.minuta;
-        return armar(d).then(function (bytes) {
-          bajar(bytes, (esConfort ? 'constancia-alimentacion-confort-care'
-                                  : 'minuta-control-alimentos') +
+        return window.AscPdfTransporte.constancia(d).then(function (bytes) {
+          bajar(bytes, 'constancia-transporte-urbano' +
                        '_' + ultimos.desde + '_a_' + ultimos.hasta +
                        (ultimos.documento ? '_' + ultimos.documento : '') + '.pdf');
           aviso($('avisoPanel'), 'PDF descargado con ' + d.registros.length +
@@ -466,7 +453,7 @@ td.num{text-align:center}
 
   // Cambiar cualquier filtro invalida la descarga: así no se baja un PDF
   // que no corresponde a lo que está en pantalla.
-  ['formato', 'desde', 'hasta', 'documento'].forEach(function (id) {
+  ['desde', 'hasta', 'documento'].forEach(function (id) {
     var invalidar = function () {
       $('btnBajar').disabled = true;
       // Los pendientes son los de la consulta anterior: esconderlos evita
@@ -499,7 +486,7 @@ td.num{text-align:center}
   function clave(p) { return p.periodo + '|' + p.id_usuario + '|' + p.id_acompanante; }
 
   function cargarPendientes(f) {
-    return pedir(API + 'pendientes.php?modulo=ALIMENTACION&' + comoUrl(f))
+    return pedir(API + 'pendientes.php?modulo=TRANSPORTE&' + comoUrl(f))
       .then(function (d) {
         pendientes = d.pendientes || [];
         paneles = {};
@@ -607,7 +594,7 @@ td.num{text-align:center}
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          modulo: 'ALIMENTACION',
+          modulo: 'TRANSPORTE',
           periodo: p.periodo,
           idUsuario: p.id_usuario,
           idAcompanante: p.id_acompanante,
@@ -644,52 +631,45 @@ td.num{text-align:center}
 
   function pintar(d) {
     var t = d.totales;
-    var esConfort = d.filtros.formato === 'confort';
 
-    texto($('tituloResultado'), esConfort
-      ? 'Confort Care — Constancia CONS-RVAS-005'
-      : 'Control general — Minuta de control de alimentos');
+    texto($('tituloResultado'), 'Constancia de transporte urbano — CONS-RVAS-005');
 
     texto($('rangoResultado'),
       'Del ' + fechaLarga(d.filtros.desde) + ' al ' + fechaLarga(d.filtros.hasta) +
       (d.filtros.documento ? ' · documento ' + d.filtros.documento : ''));
 
     $('totales').innerHTML = [
-      ['Registros', t.registros],
-      ['Personas',  t.personas],
-      ['Desayunos', t.desayuno],
-      ['Almuerzos', t.almuerzo],
-      ['Cenas',     t.cena],
-      ['Raciones',  t.raciones]
+      ['Registros',  t.registros],
+      ['Personas',   t.personas],
+      ['Viajes',     t.viajes],
+      ['Sin firmar', t.pendientes]
     ].map(function (p) {
       return '<div class="total"><b>' + p[1] + '</b><span>' + p[0] + '</span></div>';
     }).join('');
 
     if (!d.registros.length) {
       $('tablaCaja').innerHTML =
-        '<p class="vacio">No hay entregas registradas en ese rango.</p>';
+        '<p class="vacio">No hay viajes registrados en ese rango.</p>';
       mostrar($('zonaResultado'), true);
       return;
     }
 
     var cabeza = '<tr><th>Fecha</th><th>Nombre</th><th>Documento</th>' +
-      (esConfort ? '<th>Destino</th>' : '<th>EPS</th>') +
-      '<th>Desayuno</th><th>Almuerzo</th><th>Cena</th><th>Recibe</th></tr>';
+      '<th>Transporte</th><th>Cantidad</th><th>Estado</th><th>Observaciones</th></tr>';
 
     var cuerpo = d.registros.map(function (r) {
+      var firmado = r.estado === 'FIRMADO';
       var celdas = [
         fechaLarga(r.fecha),
         escapar(r.nombre_usuario).toUpperCase(),
         escapar(r.tipo_documento) + ' ' + escapar(r.n_doc),
-        escapar(esConfort ? r.destino : (r.eps || '—'))
+        escapar(r.tipo_transporte)
       ].map(function (v) { return '<td>' + v + '</td>'; });
 
-      COMIDAS.forEach(function (c) {
-        celdas.push('<td class="num">' + (Number(r[c]) > 0 ? Number(r[c]) : '—') + '</td>');
-      });
-
-      celdas.push('<td><span class="marca">' +
-        (r.recibe === 'ACOMPANANTE' ? 'Acompañante' : 'Paciente') + '</span></td>');
+      celdas.push('<td class="num">' + Number(r.cantidad || 1) + '</td>');
+      celdas.push('<td><span class="marca ' + (firmado ? 'marca--ok' : '') + '">' +
+                  (firmado ? 'Firmado' : 'Sin firmar') + '</span></td>');
+      celdas.push('<td>' + escapar(r.observaciones || '—') + '</td>');
 
       return '<tr>' + celdas.join('') + '</tr>';
     }).join('');

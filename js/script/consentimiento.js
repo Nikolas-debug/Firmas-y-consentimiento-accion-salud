@@ -449,6 +449,61 @@
   const buscaResponsable = crearBuscador($('responsable'),
     () => RESPONSABLES().map((r) => r.nombre), 'responsables');
 
+
+  const buscaHospServicio = crearBuscador($('hospServicio'),
+    () => (CONSENT && CONSENT.TIPOS_SERVICIO) || [], 'tipos de servicio');
+  const buscaHospEntidad = crearBuscador($('hospEntidad'),
+    () => (CONSENT && CONSENT.ENTIDADES) || [], 'entidades');
+  const buscaHospTipoUsuario = crearBuscador($('hospTipoUsuario'),
+    () => (CONSENT && CONSENT.TIPOS_USUARIO) || [], 'tipos de usuario');
+
+  /** Una fecha ISO más n días, en ISO. Devuelve '' si falta algo. */
+  function fechaMasDias(iso, dias) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    if (!m || !(dias > 0)) return '';
+    const f = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    f.setDate(f.getDate() + dias);
+    const p = (n) => String(n).padStart(2, '0');
+    return f.getFullYear() + '-' + p(f.getMonth() + 1) + '-' + p(f.getDate());
+  }
+
+  /* La fecha de egreso sale sola de ingreso + días autorizados, pero solo
+     mientras nadie la haya tocado: lo que escriba la persona manda. */
+  function sugerirEgreso() {
+    const eg = $('hospEgreso'), pista = $('hospEgresoPista');
+    const dias = parseInt($('hospDias').value, 10);
+    const calculada = fechaMasDias($('hospIngreso').value, dias);
+
+    if (!calculada) { pista.textContent = ''; return; }
+
+    if (!eg.value || eg.dataset.auto === '1') {
+      eg.value = calculada;
+      eg.dataset.auto = '1';
+      clearError(eg);
+    }
+    pista.textContent = (eg.value === calculada)
+      ? 'Calculada con los días autorizados; puede cambiarla.'
+      : 'Con ' + dias + ' días desde el ingreso sería el ' + calculada + '.';
+  }
+
+  function limpiarHospedaje() {
+    ['hospDireccion', 'hospTelefono', 'hospDias', 'hospIngreso', 'hospEgreso']
+      .forEach((id) => { const el = $(id); el.value = ''; clearError(el); });
+    $('hospEgreso').dataset.auto = '';
+    $('hospEgresoPista').textContent = '';
+    buscaHospServicio.limpiar();
+    buscaHospEntidad.limpiar();
+    buscaHospTipoUsuario.limpiar();
+  }
+
+  ['hospIngreso', 'hospDias'].forEach((id) => {
+    $(id).addEventListener('input', sugerirEgreso);
+  });
+  $('hospEgreso').addEventListener('input', () => {
+    $('hospEgreso').dataset.auto = '';
+    sugerirEgreso();
+  });
+
   const CLAVE_USUARIO = 'asc_usuario';
   function recordarUsuario(v) {
     try { window.sessionStorage.setItem(CLAVE_USUARIO, v); } catch (e) { /* sin memoria */ }
@@ -2853,11 +2908,136 @@
     return doc.build();
   }
 
+  /* ======================================================================
+   *  Hospedaje — CONS-RVAS-015
+   *
+   *  Los textos salen tal cual del formato aprobado, con sus erratas
+   *  («CERTIFICA», «CERTFIFICO», «DIRRECION»). Si algún día calidad las
+   *  corrige, se cambian acá y en ningún otro lado.
+   * ==================================================================== */
+
+  const TXT_HOSP = {
+    titulo1:  'CERTIFICA DE ATENCION HOGAR DE PASO',
+    titulo2:  'UNIDAD SAN FELIPE',
+    // En el formato impreso esto ocupa dos renglones solo porque la celda
+    // no da para más; acá se deja como una frase y el ancho decide dónde
+    // parte, así nunca se sale de la hoja.
+    cuerpo:   'CERTFIFICO QUE RECIBI CONFORME LA PRESTACION DE SERVICIOS ' +
+              '(ALOJAMIENTO, DESAYUNO, ALMUERZO, CENA) EN EL HOGAR DE PASO ' +
+              'UNIDAD SAN FELIPE',
+    yo:       'YO, ',
+    doc:      'IDENTIFICADO CON Nº DE DOCUMENTO: ',
+    firma:    'FIRMA',
+    renglones: [
+      ['TIPO DE SERVICIO:',  'servicio'],
+      ['ENTIDAD:',           'entidad'],
+      ['DIRRECION:',         'direccion'],
+      ['TELEFONO:',          'telefono'],
+      ['DIAS AUTORIZADOS',   'dias'],
+      ['FECHA DE INGRESO:',  'ingreso'],
+      ['FECHA DE EGRESO:',   'egreso'],
+      ['TIPO DE USUARIO:',   'tipoUsuario']
+    ]
+  };
+
+  const M_HOSP = {
+    X0: 12, W: 192,
+    ENC_ALTO: 26, ENC_LOGO: 36, ENC_COD: 40,
+    ETIQUETA: 46,     // dónde arrancan los valores de los ocho renglones
+    RENGLON: 11
+  };
+
+  function dibujarEncabezadoHosp(doc, d) {
+    const { X0, W, ENC_ALTO, ENC_LOGO, ENC_COD } = M_HOSP;
+    const y = 12;
+    const xTitulo = X0 + ENC_LOGO;
+    const xCodigo = X0 + W - ENC_COD;
+
+    doc.rect(X0, y, W, ENC_ALTO, { width: 0.9 });
+    doc.line(xTitulo, y, xTitulo, y + ENC_ALTO, { width: 0.9 });
+    doc.line(xCodigo, y, xCodigo, y + ENC_ALTO, { width: 0.9 });
+
+    // El logo, centrado en su celda y sin deformarse.
+    const cw = ENC_LOGO - 4, ch = ENC_ALTO - 4;
+    let lw = cw, lh = lw * d.logo.h / d.logo.w;
+    if (lh > ch) { lh = ch; lw = lh * d.logo.w / d.logo.h; }
+    doc.image('ImLogo', X0 + (ENC_LOGO - lw) / 2, y + (ENC_ALTO - lh) / 2, lw, lh);
+
+    const cx = (xTitulo + xCodigo) / 2;
+    doc.text(TXT_HOSP.titulo1, cx, y + 11.5, { size: 11.5, bold: true, align: 'center' });
+    doc.text(TXT_HOSP.titulo2, cx, y + 17.5, { size: 11.5, bold: true, align: 'center' });
+
+    const xc = xCodigo + 2.6;
+    doc.text('Codigo: ' + d.consent.codigo, xc, y + 8.5, { size: 6.8, bold: true });
+    doc.text('Fecha de vigencia: ' + (d.consent.fechaFormato || d.fechaCorta),
+             xc, y + 14, { size: 6.8, bold: true });
+    doc.text('Versión: ' + (d.consent.version || '01'), xc, y + 19.5, { size: 6.8, bold: true });
+
+    return y + ENC_ALTO;
+  }
+
+  function generarPDFHospedaje(d) {
+    const hoja = d.consent.hoja || { ancho: 215.9, alto: 279.4 };
+    const doc = new PDFDoc({ width: hoja.ancho, height: hoja.alto });
+    doc.addImage('ImLogo', d.logo.b64, d.logo.w, d.logo.h);
+    if (d.firma) doc.addImage('ImFirma', d.firma.b64, d.firma.w, d.firma.h);
+
+    const { X0, W, ETIQUETA, RENGLON } = M_HOSP;
+    const SZ = 10.5;
+    const h = d.hospedaje || {};
+
+    doc.addPage();
+    let y = dibujarEncabezadoHosp(doc, d) + 22;
+
+    /* El nombre y el documento, cada uno sobre su línea, como en el
+       formato impreso. */
+    const sobreLinea = (etiqueta, valor, x0, x1) => {
+      const fin = doc.text(etiqueta, x0, y, { size: SZ, bold: true });
+      if (valor) doc.text(valor, fin + 2, y, { size: SZ, bold: true });
+      doc.line(fin + 1, y + 1.4, x1, y + 1.4, { width: 0.5 });
+    };
+
+    sobreLinea(TXT_HOSP.yo, (d.nombreCompleto || '').toUpperCase(), X0, X0 + W);
+    y += 11;
+    sobreLinea(TXT_HOSP.doc, d.numeroDoc, X0, X0 + W);
+    y += 18;
+
+    y = doc.paragraph([{ s: TXT_HOSP.cuerpo, bold: true }], X0, y, W,
+                      { size: SZ, lineHeight: 6, justify: false }) + 12;
+
+    TXT_HOSP.renglones.forEach(([etiqueta, clave]) => {
+      doc.text(etiqueta, X0, y, { size: SZ, bold: true });
+      const valor = h[clave] || '';
+      if (valor) doc.text(valor, X0 + ETIQUETA + 2, y, { size: SZ });
+      doc.line(X0 + ETIQUETA, y + 1.4, X0 + W, y + 1.4, { width: 0.5 });
+      y += RENGLON;
+    });
+
+    /* La firma: la imagen se apoya sobre la línea, como al firmar a mano. */
+    y += 22;
+    const FX1 = X0 + 120, ALTO_FIRMA = 13;
+
+    if (d.firma) {
+      let fh = ALTO_FIRMA, fw = fh * d.firma.w / d.firma.h;
+      if (fw > FX1 - X0 - 6) { fw = FX1 - X0 - 6; fh = fw * d.firma.h / d.firma.w; }
+      doc.image('ImFirma', X0 + 3, y - fh - 1.5, fw, fh);
+    }
+    doc.line(X0, y, FX1, y, { width: 0.5 });
+    doc.text(TXT_HOSP.firma, X0, y + 5.5, { size: SZ, bold: true });
+
+    if (d.numeroDoc) {
+      doc.text('C.C. ' + d.numeroDoc, X0, y + 11.5, { size: 9 });
+    }
+
+    return doc.build();
+  }
+
   const CONSTRUCTORES = {
     imagen: generarPDF,
     datos: generarPDF14,
     creas_conecta: generarPDF7,
     pacientes_sf: generarPDFSanFelipe,
+    hospedaje_sf: generarPDFHospedaje,
     certificado_atencion: generarPDFCertificado,
     hoja_vida: generarPDFHojaVida,
     transporte_creas: generarPDFTransporte
@@ -2964,6 +3144,9 @@
 
     let hojaVida = null;
     if (pide('hojaVida')) hojaVida = leerHojaVida(fail);
+
+    let hospedaje = null;
+    if (pide('hospedaje')) hospedaje = leerHospedaje(fail);
 
     let alimentacion = null;
     if (pide('alimentacion')) {
@@ -3137,6 +3320,7 @@
       fechaISO: f.toISOString(),
       menores: menores,
       hojaVida: hojaVida,
+      hospedaje: hospedaje,
       alimentacion: alimentacion,
       contacto: contacto,
       foto: foto,
@@ -3154,6 +3338,52 @@
     selTipoPaciente.value = '';
     clearError(selTipoPaciente);
     reglaDocPaciente();
+  }
+
+
+  function leerHospedaje(fail) {
+    const servicio = buscaHospServicio.get();
+    if (!servicio) fail($('hospServicio'), 'Indique el tipo de servicio.');
+
+    const entidad = buscaHospEntidad.get();
+    if (!entidad) fail($('hospEntidad'), 'Indique la entidad.');
+
+    const direccion = $('hospDireccion');
+    if (!direccion.value.trim()) fail(direccion, 'Indique la dirección.');
+
+    const telefono = $('hospTelefono');
+    if (!telefono.value.trim()) fail(telefono, 'Indique el teléfono.');
+
+    const dias = $('hospDias');
+    const nDias = parseInt(dias.value, 10);
+    if (!(nDias > 0)) fail(dias, 'Indique cuántos días se autorizaron.');
+
+    const ingreso = $('hospIngreso'), egreso = $('hospEgreso');
+    if (!ingreso.value) fail(ingreso, 'Indique la fecha de ingreso.');
+    if (!egreso.value) {
+      fail(egreso, 'Indique la fecha de egreso.');
+    } else if (ingreso.value && egreso.value < ingreso.value) {
+      fail(egreso, 'La fecha de egreso no puede ser anterior a la de ingreso.');
+    }
+
+    const tipoUsuario = buscaHospTipoUsuario.get();
+    if (!tipoUsuario) fail($('hospTipoUsuario'), 'Indique el tipo de usuario.');
+
+    const larga = (v) => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '');
+      return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+    };
+
+    return {
+      servicio:     servicio,
+      entidad:      entidad,
+      direccion:    direccion.value.trim(),
+      telefono:     telefono.value.trim(),
+      dias:         nDias > 0 ? String(nDias) : '',
+      ingreso:      larga(ingreso.value),
+      egreso:       larga(egreso.value),
+      tipoUsuario:  tipoUsuario
+    };
   }
 
   function limpiarFormulario() {
@@ -3178,6 +3408,7 @@
     refreshMinors();
     buscaConvenio.limpiar();
     buscaProcedimiento.limpiar();
+    limpiarHospedaje();
     limpiarSoportes();
     limpiarFirmas();
     limpiarHojaVida();
@@ -3239,13 +3470,8 @@
         finalidad: d.finalidad || '',
         nombre: d.nombreCompleto,
         tipoDocumento: d.tipoDocLabel,
-        // El id ('CC') además de la etiqueta: la etiqueta es para leer en el
-        // correo, el id es lo que necesita la base cuando el Apps Script
-        // registra al paciente.
         tipoDocId: d.tipoDocId,
         documento: d.numeroDoc,
-        // La EPS remitente: la ficha del paciente la necesita, y el Apps
-        // Script la reenvía a la base cuando registra el consentimiento.
         eps: d.entidadRemitente || '',
         lugarExpedicion: d.lugarExpedicion,
         sede: d.consent.campos.sede === false ? '' : d.sedeNombre,
@@ -3278,19 +3504,7 @@
       });
   }
 
-  /* Registro del paciente cuando se está probando en local.
-   *
-   * En producción de esto se encarga el Apps Script: después de mandar el
-   * correo llama a api/consentimiento.php de servidor a servidor, con su
-   * secreto. Pero el Apps Script corre en Google, y desde allá «localhost»
-   * es la máquina de Google: ese aviso jamás llega al equipo de quien
-   * programa. Así que en local lo hace el navegador.
-   *
-   * Solo corre en localhost. En el sitio de verdad no se dispara, y aunque
-   * se disparara el endpoint la rechazaría por falta del secreto.
-   *
-   * Nunca falla hacia afuera: devuelve una nota para el aviso, porque si
-   * rechazara haría creer que el correo no salió. */
+
   function esLocal() {
     return ['localhost', '127.0.0.1', '::1'].indexOf(location.hostname) !== -1;
   }
@@ -4135,6 +4349,15 @@
       });
       buscaConvenio.limpiar();
       buscaProcedimiento.limpiar();
+    }
+
+    const verHospedaje = pide('hospedaje');
+    $('cardHospedaje').classList.toggle('asc-hidden', !verHospedaje);
+    if (verHospedaje) {
+      if (!$('hospIngreso').value) $('hospIngreso').value = hoyISO();
+      sugerirEgreso();
+    } else {
+      limpiarHospedaje();
     }
 
     const verAlim = pide('alimentacion');

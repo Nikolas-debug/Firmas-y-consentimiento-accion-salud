@@ -1,7 +1,7 @@
 <?php
 
 /* ============================================================================
- *  control-alimentacion.php — registro de entregas de alimentación.
+ *  control-transporte.php — registro de viajes de transporte urbano.
  *
  *  Dejó de ser un «consentimiento» del formulario público: no genera
  *  documento, lo usa el personal de la Unidad y va detrás del mismo ingreso
@@ -10,8 +10,8 @@
  *  El paciente no se digita aquí: se busca entre los que ya firmaron el
  *  consentimiento informado. Sin consentimiento previo no hay entrega.
  *
- *  Acá ya no se firma. La entrega queda PENDIENTE y se valida al cerrar el
- *  mes, desde reportes-alimentacion.php, con una sola firma por persona.
+ *  Acá no se firma. El viaje queda PENDIENTE y se valida al cerrar el mes,
+ *  desde reportes-transporte.php, con una sola firma por persona.
  * ========================================================================== */
 
 declare(strict_types=1);
@@ -35,7 +35,7 @@ header('Referrer-Policy: same-origin');
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="robots" content="noindex, nofollow"/>
-<title>Control de alimentación — Unidad San Felipe</title>
+<title>Control de transporte — Unidad San Felipe</title>
 <link rel="icon" href="images/favicon.ico"/>
 <style>
 :root{
@@ -118,19 +118,14 @@ button:disabled{opacity:.55;cursor:default}
 .elegido dt{font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
 .elegido dd{margin:0 0 6px;font-weight:600}
 
-/* --- raciones --- */
-.raciones{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
-.racion{border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
-.racion label{display:block;margin-bottom:8px}
-.racion input{text-align:center;font-size:17px;font-weight:700}
 </style>
 </head>
 <body>
 
 <!-- =====================  INGRESO  ===================================== -->
 <div class="wrap wrap--angosto<?= $entro ? ' oculto' : '' ?>" id="zonaIngreso">
-  <h1>Control de alimentación</h1>
-  <p class="lead">Ingrese con su usuario para registrar entregas.</p>
+  <h1>Control de transporte</h1>
+  <p class="lead">Ingrese con su usuario para registrar viajes.</p>
 
   <form class="tarjeta" id="formIngreso" autocomplete="on">
     <div class="campos" style="grid-template-columns:1fr">
@@ -155,12 +150,12 @@ button:disabled{opacity:.55;cursor:default}
 
   <div class="barra">
     <div>
-      <h1>Control de alimentación</h1>
+      <h1>Control de transporte</h1>
       <p class="lead" style="margin:0">Unidad San Felipe</p>
     </div>
     <div style="text-align:right">
       <p class="quien">Ingresó como <b id="nombreQuien"><?= htmlspecialchars($quien, ENT_QUOTES, 'UTF-8') ?></b></p>
-      <a class="btn-link" href="reportes-alimentacion.php">Ir a Reportes</a>
+      <a class="btn-link" href="reportes-transporte.php">Ir a Reportes</a>
       <button class="btn-link" type="button" id="btnSalir">Cerrar sesión</button>
     </div>
   </div>
@@ -224,88 +219,32 @@ button:disabled{opacity:.55;cursor:default}
     </div>
 
     <div class="tarjeta">
-      <h2>3. Datos de la entrega</h2>
+      <h2>3. Datos del viaje</h2>
       <div class="campos">
         <div class="campo">
           <label for="fecha">Fecha</label>
           <input id="fecha" type="date" required/>
         </div>
         <div class="campo">
-          <label for="tipoControl">Tipo de control</label>
-          <select id="tipoControl">
-            <option value="general">Control general</option>
-            <option value="confort">Confort Care</option>
-          </select>
+          <label for="tipoTransporte">Tipo de transporte</label>
+          <select id="tipoTransporte"></select>
+          <p class="pista" id="pistaTransporte"></p>
         </div>
         <div class="campo">
-          <label for="destino">EPS de destino</label>
-          <select id="destino"></select>
-          <p class="pista" id="pistaDestino"></p>
+          <label for="cantidad">Cantidad</label>
+          <input id="cantidad" type="number" min="1" max="20" step="1" value="1" inputmode="numeric"/>
         </div>
-      </div>
-
-      <h2 style="margin:26px 0 14px">Raciones entregadas</h2>
-      <div class="raciones">
-        <div class="racion">
-          <label for="desayuno">Desayuno</label>
-          <input id="desayuno" type="number" min="0" max="99" step="1" placeholder="0" inputmode="numeric"/>
-        </div>
-        <div class="racion">
-          <label for="almuerzo">Almuerzo</label>
-          <input id="almuerzo" type="number" min="0" max="99" step="1" placeholder="0" inputmode="numeric"/>
-        </div>
-        <div class="racion">
-          <label for="cena">Cena</label>
-          <input id="cena" type="number" min="0" max="99" step="1" placeholder="0" inputmode="numeric"/>
-        </div>
-      </div>
-      <p class="pista" style="margin-top:12px">
-        Dos o más de una misma comida significa que vino un acompañante: al
-        escribirlo se abre la tarjeta para tomar sus datos.
-      </p>
-      <p class="error-campo oculto" id="errorRaciones"></p>
-    </div>
-
-    <!-- 4. Acompañante: aparece solo cuando alguna comida va en 2 o más -->
-    <div class="tarjeta oculto" id="tarjetaAcompanante">
-      <h2>4. Datos del acompañante</h2>
-      <p class="pista" style="margin:-10px 0 16px">
-        Se pide porque hay <b id="cuantasRaciones"></b> de una misma comida.
-      </p>
-
-      <div class="campos">
         <div class="campo" style="grid-column:1/-1">
-          <label for="acompNombre">Nombre completo</label>
-          <input id="acompNombre" type="text" autocomplete="off"/>
-        </div>
-        <div class="campo">
-          <label for="acompTipo">Tipo de documento</label>
-          <select id="acompTipo">
-            <option value="CC">C.C. — Cédula de ciudadanía</option>
-            <option value="CE">C.E. — Cédula de extranjería</option>
-            <option value="PA">PA — Pasaporte</option>
-            <option value="PEP">PEP — Permiso especial de permanencia</option>
-            <option value="PPT">PPT — Permiso por protección temporal</option>
-          </select>
-        </div>
-        <div class="campo">
-          <label for="acompDoc">Número de documento</label>
-          <input id="acompDoc" type="text" inputmode="numeric" maxlength="10" autocomplete="off"/>
-        </div>
-        <div class="campo">
-          <label for="acompTel">Teléfono <span class="pista">(opcional)</span></label>
-          <input id="acompTel" type="text" inputmode="tel" maxlength="30" autocomplete="off"/>
-        </div>
-        <div class="campo">
-          <label for="acompParentesco">Parentesco <span class="pista">(opcional)</span></label>
-          <input id="acompParentesco" type="text" maxlength="60" autocomplete="off"/>
+          <label for="observaciones">Observaciones <span class="pista">(opcional)</span></label>
+          <input id="observaciones" type="text" maxlength="255" autocomplete="off"/>
         </div>
       </div>
+      <p class="error-campo oculto" id="errorViaje"></p>
     </div>
 
     <div class="tarjeta">
       <div class="botones" style="margin:0">
-        <button class="btn" type="submit" id="btnGuardar">Guardar la entrega</button>
+        <button class="btn" type="submit" id="btnGuardar">Guardar el viaje</button>
         <button class="btn-2" type="button" id="btnOtro">Buscar otro paciente</button>
       </div>
       <p class="aviso oculto" id="avisoGuardar"></p>
@@ -386,9 +325,13 @@ window.addEventListener('DOMContentLoaded', function () {
       .then(function () { location.reload(); });
   });
 
-  /* --- Listas del config ------------------------------------------------ */
+  /* --- Listas del config ------------------------------------------------
+   *  Viven todas en el formato `alimentacion_sf`, que hace de bolsa de
+   *  listas del módulo de San Felipe: EPS, tipos de paciente y, ahora,
+   *  los tipos de transporte.
+   * -------------------------------------------------------------------- */
 
-  function formatoAlimentacion() {
+  function listasDelModulo() {
     var cfg = window.CONSENT_CONFIG;
     if (!cfg || !cfg.CONSENTIMIENTOS) return null;
     for (var i = 0; i < cfg.CONSENTIMIENTOS.length; i++) {
@@ -412,8 +355,6 @@ window.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  /* Deja elegido un valor que puede no estar en la lista (por ejemplo una EPS
-     vieja que ya no aparece en el config). Antes que perderla, se agrega. */
   function elegirValor(sel, valor) {
     var v = String(valor == null ? '' : valor);
     if (v !== '' && !sel.querySelector('option[value="' + v.replace(/"/g, '\\"') + '"]')) {
@@ -425,20 +366,16 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   function llenarListas() {
-    var f = formatoAlimentacion();
-    var destinos = (f && f.EPS_DESTINO) || [];
+    var f = listasDelModulo();
+    var tipos = (f && f.TIPOS_TRANSPORTE) || ['TRANSPORTE REDONDO'];
 
-    llenarSelect($('destino'), destinos, '— Elija —');
+    llenarSelect($('tipoTransporte'), tipos, '— Elija —');
     llenarSelect($('tipoPaciente'), (f && f.TIPOS_PACIENTE) || [], '— Sin indicar —');
     llenarSelect($('epsPaciente'), (f && f.ENTIDADES_SALUD) || [], '— Sin indicar —');
 
-    // Si una lista todavía está vacía se dice por qué, en vez de dejar un
-    // desplegable mudo que parece un error.
-    mostrar($('pistaDestino'), destinos.length === 0);
-    if (!destinos.length) {
-      $('pistaDestino').textContent =
-        'La lista de EPS está vacía: cárguela en EPS_DESTINO, dentro de consentimiento-config.js.';
-    }
+    // Con un solo tipo no hay nada que elegir: queda puesto.
+    if (tipos.length === 1) $('tipoTransporte').value = tipos[0];
+    mostrar($('pistaTransporte'), tipos.length <= 1);
 
     var entidades = (f && f.ENTIDADES_SALUD) || [];
     mostrar($('pistaEps'), entidades.length === 0);
@@ -555,33 +492,14 @@ window.addEventListener('DOMContentLoaded', function () {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
-  /* --- La regla del acompañante ----------------------------------------- */
-
-  function numero(id) {
-    var n = parseInt(String($(id).value).replace(/\D/g, ''), 10);
-    return (isFinite(n) && n > 0) ? n : 0;
-  }
-
-  function revisarAcompanante() {
-    var mayor = Math.max(numero('desayuno'), numero('almuerzo'), numero('cena'));
-    var hace = mayor >= 2;
-    mostrar($('tarjetaAcompanante'), hace);
-    if (hace) $('cuantasRaciones').textContent = mayor + ' raciones';
-    return hace;
-  }
-
-  ['desayuno', 'almuerzo', 'cena'].forEach(function (id) {
-    $(id).addEventListener('input', revisarAcompanante);
-  });
-
   /* --- Guardar ---------------------------------------------------------- */
 
   function limpiarMarcas() {
-    ['fecha', 'destino', 'tipoPaciente', 'epsPaciente', 'direccion', 'telefono',
-     'acompNombre', 'acompTipo', 'acompDoc'].forEach(function (id) {
+    ['fecha', 'tipoTransporte', 'cantidad', 'tipoPaciente', 'epsPaciente',
+     'direccion', 'telefono'].forEach(function (id) {
       $(id).classList.remove('mal');
     });
-    $('errorRaciones').classList.add('oculto');
+    $('errorViaje').classList.add('oculto');
     $('errorFicha').classList.add('oculto');
   }
 
@@ -592,32 +510,18 @@ window.addEventListener('DOMContentLoaded', function () {
     limpiarMarcas();
     $('avisoGuardar').classList.add('oculto');
 
-    var conAcompanante = revisarAcompanante();
-
     var cuerpo = {
-      idUsuario:   elegido.id_usuario,
-      tipoControl: $('tipoControl').value,
-      destino:     $('destino').value,
-      fecha:       $('fecha').value,
-      desayuno:    numero('desayuno') || null,
-      almuerzo:    numero('almuerzo') || null,
-      cena:        numero('cena')     || null,
-      paciente:    datosFicha()              // lo que se completó de la ficha
+      idUsuario:      elegido.id_usuario,
+      fecha:          $('fecha').value,
+      tipoTransporte: $('tipoTransporte').value,
+      cantidad:       parseInt($('cantidad').value, 10) || 1,
+      observaciones:  $('observaciones').value.trim(),
+      paciente:       datosFicha()           // lo que se completó de la ficha
     };
-
-    if (conAcompanante) {
-      cuerpo.acompanante = {
-        nombre:        $('acompNombre').value,
-        tipoDocumento: $('acompTipo').value,
-        documento:     $('acompDoc').value,
-        telefono:      $('acompTel').value,
-        parentesco:    $('acompParentesco').value
-      };
-    }
 
     ocupado($('btnGuardar'), true, 'Guardando…');
 
-    pedir('api/registrar.php', {
+    pedir('api/registrar-transporte.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cuerpo)
@@ -636,9 +540,8 @@ window.addEventListener('DOMContentLoaded', function () {
           : '';
 
         aviso($('avisoGuardar'),
-          'Entrega guardada para ' + elegido.nombre_usuario +
-          (d.conAcompanante ? ', con acompañante.' : '.') + completado +
-          ' Puede registrar otra o buscar a otro paciente.', true);
+          'Viaje guardado para ' + elegido.nombre_usuario + '.' + completado +
+          ' Queda sin firmar hasta que cierre el mes en Reportes.', true);
         limpiarEntrega();
       })
       .catch(function (err) {
@@ -646,7 +549,7 @@ window.addEventListener('DOMContentLoaded', function () {
         aviso($('avisoGuardar'), 'NO se guardó: ' + err.message, false);
       })
       .then(function () {
-        ocupado($('btnGuardar'), false, 'Guardar la entrega');
+        ocupado($('btnGuardar'), false, 'Guardar el viaje');
         $('avisoGuardar').scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
   });
@@ -655,24 +558,22 @@ window.addEventListener('DOMContentLoaded', function () {
     if (!campos) return;
 
     var DONDE = {
-      fecha:                    'fecha',
-      destino:                  'destino',
-      tipoPaciente:             'tipoPaciente',
-      eps:                      'epsPaciente',
-      direccion:                'direccion',
-      telefono:                 'telefono',
-      acompananteNombre:        'acompNombre',
-      acompananteTipoDocumento: 'acompTipo',
-      acompananteDocumento:     'acompDoc'
+      fecha:          'fecha',
+      tipoTransporte: 'tipoTransporte',
+      cantidad:       'cantidad',
+      tipoPaciente:   'tipoPaciente',
+      eps:            'epsPaciente',
+      direccion:      'direccion',
+      telefono:       'telefono'
     };
 
     Object.keys(campos).forEach(function (k) {
       if (DONDE[k]) $(DONDE[k]).classList.add('mal');
     });
 
-    if (campos.alimentacion) {
-      $('errorRaciones').textContent = campos.alimentacion;
-      $('errorRaciones').classList.remove('oculto');
+    if (campos.paciente) {
+      $('errorViaje').textContent = campos.paciente;
+      $('errorViaje').classList.remove('oculto');
     }
     if (campos.ficha) {
       $('errorFicha').textContent = campos.ficha;
@@ -680,12 +581,11 @@ window.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  /* Tras guardar se limpia lo de la entrega pero se deja al paciente
-     elegido: lo habitual es registrarle otro día seguido. */
+  /* Tras guardar se limpia lo del viaje pero se deja al paciente elegido:
+     lo habitual es registrarle otro día seguido. */
   function limpiarEntrega() {
-    ['desayuno', 'almuerzo', 'cena', 'acompNombre', 'acompDoc', 'acompTel', 'acompParentesco']
-      .forEach(function (id) { $(id).value = ''; });
-    revisarAcompanante();
+    $('observaciones').value = '';
+    $('cantidad').value = '1';
   }
 });
 </script>

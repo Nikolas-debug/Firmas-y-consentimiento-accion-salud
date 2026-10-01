@@ -107,6 +107,14 @@
     <path d="M30 66v6M66 66v6" stroke="#3b7ddb" stroke-width="4" stroke-linecap="round"/>
     <path d="M14 40h4M78 40h4" stroke="#3b7ddb" stroke-width="3.2" stroke-linecap="round"/>
   </symbol>
+  <!-- Hospedaje: cama bajo techo, Hogar de Paso -->
+  <symbol id="ic-consent-hospedaje" viewBox="0 0 96 96">
+    <path d="M48 14 82 38v42a4 4 0 0 1-4 4H18a4 4 0 0 1-4-4V38z" fill="#eaf4fb" stroke="#3b7ddb" stroke-width="3.4" stroke-linejoin="round"/>
+    <path d="M26 66V50a4 4 0 0 1 4-4h36a4 4 0 0 1 4 4v16" fill="none" stroke="#3b7ddb" stroke-width="3.2" stroke-linecap="round"/>
+    <rect x="26" y="58" width="44" height="8" rx="3" fill="#7fb8dd"/>
+    <rect x="30" y="49" width="13" height="7" rx="3" fill="#fff" stroke="#7fb8dd" stroke-width="2"/>
+    <path d="M26 66v6M70 66v6" stroke="#3b7ddb" stroke-width="4" stroke-linecap="round"/>
+  </symbol>
   <!-- Certificado de alimentación: plato servido, comida caliente -->
   <symbol id="ic-consent-alimentacion" viewBox="0 0 96 96">
     <path d="M18 44h60c0 17-13 30-30 30S18 61 18 44z" fill="#eaf4fb" stroke="#3b7ddb" stroke-width="3.4" stroke-linejoin="round"/>
@@ -610,6 +618,91 @@
               <label class="asc-label" for="observaciones">Observaciones <span class="asc-opcional">(opcional)</span></label>
               <input class="asc-input" id="observaciones" name="observaciones" type="text" maxlength="200"
                      placeholder="Se puede dejar en blanco"/>
+            </div>
+          </div>
+        </section>
+
+        <!-- Hospedaje: los renglones del formato CONS-RVAS-015 -->
+        <section class="asc-card asc-hidden" id="cardHospedaje">
+          <h3 class="asc-card-title">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M7 17v-4h10v4"/><path d="M7 17v2M17 17v2"/></svg>
+            Datos del hospedaje
+          </h3>
+
+          <div class="asc-fields asc-fields--2">
+            <div class="asc-field asc-field--full">
+              <label class="asc-label" for="hospServicio">Tipo de servicio</label>
+              <div class="asc-buscador">
+                <input class="asc-input asc-buscador-input" id="hospServicio" name="hospServicio" type="text"
+                       maxlength="120" autocomplete="off" spellcheck="false"
+                       role="combobox" aria-expanded="false" aria-autocomplete="list"
+                       aria-controls="hospServicioLista"
+                       placeholder="Escriba para buscar el tipo de servicio"/>
+                <button class="asc-buscador-flecha" type="button" tabindex="-1" aria-label="Ver todos los tipos de servicio">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <ul class="asc-buscador-lista asc-hidden" id="hospServicioLista" role="listbox" aria-label="Tipos de servicio"></ul>
+              </div>
+              <p class="asc-note asc-buscador-pista" id="hospServicioPista"></p>
+            </div>
+
+            <div class="asc-field asc-field--full">
+              <label class="asc-label" for="hospEntidad">Entidad</label>
+              <div class="asc-buscador">
+                <input class="asc-input asc-buscador-input" id="hospEntidad" name="hospEntidad" type="text"
+                       maxlength="160" autocomplete="off" spellcheck="false"
+                       role="combobox" aria-expanded="false" aria-autocomplete="list"
+                       aria-controls="hospEntidadLista"
+                       placeholder="Escriba para buscar la entidad"/>
+                <button class="asc-buscador-flecha" type="button" tabindex="-1" aria-label="Ver todas las entidades">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <ul class="asc-buscador-lista asc-hidden" id="hospEntidadLista" role="listbox" aria-label="Entidades"></ul>
+              </div>
+              <p class="asc-note asc-buscador-pista" id="hospEntidadPista"></p>
+            </div>
+
+            <div class="asc-field asc-field--full">
+              <label class="asc-label" for="hospDireccion">Dirección</label>
+              <input class="asc-input" id="hospDireccion" name="hospDireccion" type="text" maxlength="150"
+                     placeholder="Dirección de la entidad"/>
+            </div>
+
+            <div class="asc-field">
+              <label class="asc-label" for="hospTelefono">Teléfono</label>
+              <input class="asc-input" id="hospTelefono" name="hospTelefono" type="text"
+                     inputmode="tel" maxlength="30"/>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="hospDias">Días autorizados</label>
+              <input class="asc-input" id="hospDias" name="hospDias" type="number"
+                     min="1" max="365" step="1" inputmode="numeric"/>
+            </div>
+
+            <div class="asc-field">
+              <label class="asc-label" for="hospIngreso">Fecha de ingreso</label>
+              <input class="asc-input" id="hospIngreso" name="hospIngreso" type="date"/>
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="hospEgreso">Fecha de egreso</label>
+              <input class="asc-input" id="hospEgreso" name="hospEgreso" type="date"/>
+              <p class="asc-note" id="hospEgresoPista"></p>
+            </div>
+
+            <div class="asc-field asc-field--full">
+              <label class="asc-label" for="hospTipoUsuario">Tipo de usuario</label>
+              <div class="asc-buscador">
+                <input class="asc-input asc-buscador-input" id="hospTipoUsuario" name="hospTipoUsuario" type="text"
+                       maxlength="120" autocomplete="off" spellcheck="false"
+                       role="combobox" aria-expanded="false" aria-autocomplete="list"
+                       aria-controls="hospTipoUsuarioLista"
+                       placeholder="Escriba para buscar el tipo de usuario"/>
+                <button class="asc-buscador-flecha" type="button" tabindex="-1" aria-label="Ver todos los tipos de usuario">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <ul class="asc-buscador-lista asc-hidden" id="hospTipoUsuarioLista" role="listbox" aria-label="Tipos de usuario"></ul>
+              </div>
+              <p class="asc-note asc-buscador-pista" id="hospTipoUsuarioPista"></p>
             </div>
           </div>
         </section>

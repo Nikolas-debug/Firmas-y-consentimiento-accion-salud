@@ -14,8 +14,6 @@ $cfg = asc_cargar_config();
 
 $secretoEsperado = (string) ($cfg['secreto_apps_script'] ?? '');
 
-// Sin secreto configurado se rechaza todo: un secreto vacío aceptaría
-// cualquier petición, que es justo lo que se quiere evitar.
 if ($secretoEsperado === '' && !asc_servidor_de_pruebas()) {
     error_log('[alimentacion] consentimiento: falta secreto_apps_script en la configuración');
     asc_error(503, 'El registro de consentimientos no está configurado.');
